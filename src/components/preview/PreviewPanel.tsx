@@ -68,28 +68,28 @@ export function PreviewPanel({ content, theme, onExport, onRenderTime }: Props) 
         </div>
         <div className="flex items-center gap-1">
           <button onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} title="Zoom out"
-            className="p-1 rounded transition-colors hover:bg-white/8" style={{ color: 'var(--text-tertiary)' }}>
+            className="p-1 rounded transition-colors hover:bg-white/[0.08]" style={{ color: 'var(--text-tertiary)' }}>
             <ZoomOut size={13} />
           </button>
           <span className="text-xs w-8 text-center" style={{ color: 'var(--text-secondary)' }}>
             {Math.round(zoom * 100)}%
           </span>
           <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} title="Zoom in"
-            className="p-1 rounded transition-colors hover:bg-white/8" style={{ color: 'var(--text-tertiary)' }}>
+            className="p-1 rounded transition-colors hover:bg-white/[0.08]" style={{ color: 'var(--text-tertiary)' }}>
             <ZoomIn size={13} />
           </button>
           <button onClick={() => { setZoom(1); if (containerRef.current) { containerRef.current.scrollTop = 0; containerRef.current.scrollLeft = 0; } }}
-            title="Reset zoom" className="p-1 rounded transition-colors hover:bg-white/8" style={{ color: 'var(--text-tertiary)' }}>
+            title="Reset zoom" className="p-1 rounded transition-colors hover:bg-white/[0.08]" style={{ color: 'var(--text-tertiary)' }}>
             <Maximize2 size={13} />
           </button>
           <div className="w-px h-4 mx-1" style={{ background: 'var(--border-subtle)' }} />
           <button onClick={copySvg} title="Copy SVG"
-            className="p-1 rounded transition-colors hover:bg-white/8" style={{ color: 'var(--text-tertiary)' }}>
+            className="p-1 rounded transition-colors hover:bg-white/[0.08]" style={{ color: 'var(--text-tertiary)' }}>
             {copied ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
           </button>
           {onExport && (
             <button onClick={onExport} title="Export"
-              className="p-1 rounded transition-colors hover:bg-white/8" style={{ color: 'var(--text-tertiary)' }}>
+              className="p-1 rounded transition-colors hover:bg-white/[0.08]" style={{ color: 'var(--text-tertiary)' }}>
               <Download size={13} />
             </button>
           )}

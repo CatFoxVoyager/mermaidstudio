@@ -102,7 +102,7 @@ export function TemplateLibrary({ isOpen = true, onSelect, onClose }: Props) {
             <span className="text-[10px] block" style={{ color: 'var(--text-tertiary)' }}>{totalCount} {t('templates.templates')}{userTemplates.length > 0 ? ` (${userTemplates.length} ${t('templates.custom')})` : ''}</span>
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded transition-colors hover:bg-white/8"
+        <button onClick={onClose} className="p-1.5 rounded transition-colors hover:bg-white/[0.08]"
           style={{ color: 'var(--text-secondary)' }}>
           <X size={14} />
         </button>

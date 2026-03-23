@@ -203,7 +203,7 @@ export function Sidebar({ onOpenDiagram, activeDiagramId, onRefresh }: Props) {
         }}
         onContextMenu={e => showDiagramCtx(e, d)}>
         {isSelectMode && (
-          <button onClick={handleSelect} className="flex-shrink-0 p-0.5 rounded hover:bg-white/10" style={{ color: 'var(--text-secondary)' }}>
+          <button onClick={handleSelect} className="flex-shrink-0 p-0.5 rounded hover:bg-white/[0.10]" style={{ color: 'var(--text-secondary)' }}>
             {isSelected ? <CheckSquare size={13} /> : <Square size={13} />}
           </button>
         )}
@@ -293,17 +293,17 @@ export function Sidebar({ onOpenDiagram, activeDiagramId, onRefresh }: Props) {
         <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>{t('sidebar.explorer')}</span>
         <div className="flex gap-1">
           <button onClick={() => setIsSelectMode(!isSelectMode)} title={isSelectMode ? t('sidebar.exitSelectMode') : t('sidebar.enterSelectMode')}
-            className={`p-1 rounded-md transition-colors ${isSelectMode ? 'bg-white/10' : 'hover:bg-white/8'}`}
+            className={`p-1 rounded-md transition-colors ${isSelectMode ? 'bg-white/10' : 'hover:bg-white/[0.08]'}`}
             style={{ color: isSelectMode ? 'var(--accent)' : 'var(--text-secondary)' }}>
             <CheckSquare size={13} />
           </button>
           <button onClick={() => newDiagram(null)} title={t('sidebar.newDiagram')}
-            className="p-1 rounded-md transition-colors hover:bg-white/8"
+            className="p-1 rounded-md transition-colors hover:bg-white/[0.08]"
             style={{ color: 'var(--text-secondary)' }}>
             <FilePlus size={13} />
           </button>
           <button onClick={async () => { await createFolder(t('sidebar.newFolder')); refresh(); }} title={t('sidebar.newFolder')}
-            className="p-1 rounded-md transition-colors hover:bg-white/8"
+            className="p-1 rounded-md transition-colors hover:bg-white/[0.08]"
             style={{ color: 'var(--text-secondary)' }}>
             <FolderPlus size={13} />
           </button>
@@ -345,7 +345,7 @@ export function Sidebar({ onOpenDiagram, activeDiagramId, onRefresh }: Props) {
             </button>
           ))}
           <button onClick={() => setShowNewTag(v => !v)} title="Add tag"
-            className="p-0.5 rounded-full transition-colors hover:bg-white/8"
+            className="p-0.5 rounded-full transition-colors hover:bg-white/[0.08]"
             style={{ color: 'var(--text-tertiary)' }}>
             <Plus size={10} />
           </button>
@@ -379,7 +379,7 @@ export function Sidebar({ onOpenDiagram, activeDiagramId, onRefresh }: Props) {
             <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
               {selectedIds.size} {selectedIds.size === 1 ? t('sidebar.diagramSelected') : t('sidebar.diagramsSelected')}
             </span>
-            <button onClick={() => { setIsSelectMode(false); setSelectedIds(new Set()); }} className="p-0.5 rounded hover:bg-white/10" style={{ color: 'var(--text-secondary)' }}>
+            <button onClick={() => { setIsSelectMode(false); setSelectedIds(new Set()); }} className="p-0.5 rounded hover:bg-white/[0.10]" style={{ color: 'var(--text-secondary)' }}>
               <X size={12} />
             </button>
           </div>
@@ -439,7 +439,7 @@ export function Sidebar({ onOpenDiagram, activeDiagramId, onRefresh }: Props) {
           <div className="w-80 rounded-2xl shadow-2xl overflow-hidden" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border-subtle)' }}>
             <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
               <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('sidebar.selectFolder')}</span>
-              <button onClick={() => { setShowFolderPicker(false); setPickerDiagramIds([]); }} className="p-1 rounded hover:bg-white/8" style={{ color: 'var(--text-secondary)' }}>
+              <button onClick={() => { setShowFolderPicker(false); setPickerDiagramIds([]); }} className="p-1 rounded hover:bg-white/[0.08]" style={{ color: 'var(--text-secondary)' }}>
                 <X size={14} />
               </button>
             </div>

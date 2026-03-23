@@ -30,7 +30,7 @@ export function TopBar({
       style={{ background: 'var(--surface-raised)', borderColor: 'var(--border-subtle)' }}>
       <div className="flex items-center gap-2.5">
         <button onClick={onToggleSidebar}
-          className="p-1.5 rounded-lg transition-colors hover:bg-white/8"
+          className="p-1.5 rounded-lg transition-colors hover:bg-white/[0.08]"
           style={{ color: 'var(--text-secondary)' }} title={t('header.toggleSidebar')}>
           <PanelLeft size={15} className={`transition-transform duration-200 ${sidebarOpen ? '' : 'scale-x-[-1]'}`} />
         </button>

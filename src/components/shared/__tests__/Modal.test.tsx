@@ -267,7 +267,7 @@ describe('Modal Component', () => {
       );
       const overlay = screen.getByTestId('modal-overlay');
       expect(overlay).toBeInTheDocument();
-      expect(overlay).toHaveClass('bg-black/50');
+      expect(overlay).toHaveClass('bg-black/[0.50]');
     });
 
     it('should apply backdrop blur to overlay', () => {

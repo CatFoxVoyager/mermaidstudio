@@ -85,7 +85,7 @@ export function WorkspacePanel({
         <div className="flex items-center gap-0.5">
           {activeTab.is_dirty && (
             <button onClick={() => onContentChange(activeTab.id, activeTab.saved_content)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all hover:bg-white/8"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all hover:bg-white/[0.08]"
               style={{ color: 'var(--text-secondary)' }}
               title={t('editor.revertToSaved')}>
               <Undo size={11} /> {showLabels ? t('editor.revert') : ''}
@@ -130,7 +130,7 @@ export function WorkspacePanel({
           <button
             onClick={() => setShowLabels(v => !v)}
             title={showLabels ? t('editor.hideLabels') : t('editor.showLabels')}
-            className="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors hover:bg-white/8"
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors hover:bg-white/[0.08]"
             style={{ color: 'var(--text-tertiary)' }}>
             {showLabels ? (
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -192,7 +192,7 @@ function ToolbarButton({ icon, label, showLabel, onClick, title, disabled, activ
       onClick={onClick}
       disabled={disabled}
       title={title ?? label}
-      className="flex items-center gap-1.5 px-1.5 py-1 rounded text-xs transition-colors hover:bg-white/8 disabled:opacity-30 disabled:cursor-not-allowed"
+      className="flex items-center gap-1.5 px-1.5 py-1 rounded text-xs transition-colors hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed"
       style={{
         color: active ? 'var(--accent)' : 'var(--text-tertiary)',
         background: active ? 'var(--accent-dim)' : undefined,

@@ -67,23 +67,23 @@ export function FullscreenPreview({ content, onClose }: Props) {
         <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Fullscreen Preview</span>
         <div className="flex items-center gap-2">
           <button onClick={() => setZoom(z => Math.max(0.1, z - 0.25))}
-            className="p-1.5 rounded-lg transition-colors hover:bg-white/8" style={{ color: 'var(--text-secondary)' }}>
+            className="p-1.5 rounded-lg transition-colors hover:bg-white/[0.08]" style={{ color: 'var(--text-secondary)' }}>
             <ZoomOut size={16} />
           </button>
           <span className="text-xs w-12 text-center font-mono" style={{ color: 'var(--text-secondary)' }}>
             {Math.round(zoom * 100)}%
           </span>
           <button onClick={() => setZoom(z => Math.min(5, z + 0.25))}
-            className="p-1.5 rounded-lg transition-colors hover:bg-white/8" style={{ color: 'var(--text-secondary)' }}>
+            className="p-1.5 rounded-lg transition-colors hover:bg-white/[0.08]" style={{ color: 'var(--text-secondary)' }}>
             <ZoomIn size={16} />
           </button>
           <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
-            className="p-1.5 rounded-lg transition-colors hover:bg-white/8" style={{ color: 'var(--text-secondary)' }}>
+            className="p-1.5 rounded-lg transition-colors hover:bg-white/[0.08]" style={{ color: 'var(--text-secondary)' }}>
             <Maximize2 size={16} />
           </button>
           <div className="w-px h-5 mx-1" style={{ background: 'var(--border-subtle)' }} />
           <button onClick={onClose}
-            className="p-1.5 rounded-lg transition-colors hover:bg-white/8" style={{ color: 'var(--text-secondary)' }}>
+            className="p-1.5 rounded-lg transition-colors hover:bg-white/[0.08]" style={{ color: 'var(--text-secondary)' }}>
             <X size={16} />
           </button>
         </div>

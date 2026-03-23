@@ -238,7 +238,7 @@ export function AISettingsModal({ onClose }: Props) {
                       setDropRect(rect);
                       setModelDropOpen(v => !v);
                     }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded transition-colors hover:bg-white/10"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded transition-colors hover:bg-white/[0.10]"
                     style={{ color: 'var(--text-tertiary)' }}>
                     <ChevronDown size={12} className={`transition-transform ${modelDropOpen ? 'rotate-180' : ''}`} />
                   </button>
@@ -257,7 +257,7 @@ export function AISettingsModal({ onClose }: Props) {
                     }}>
                     {(fetchedModels ?? preset.models).map(m => (
                       <button key={m} onClick={() => { setModel(m); setModelDropOpen(false); setTestResult(null); }}
-                        className="w-full px-3 py-2 text-left text-xs font-mono transition-colors hover:bg-white/8 flex items-center justify-between"
+                        className="w-full px-3 py-2 text-left text-xs font-mono transition-colors hover:bg-white/[0.08] flex items-center justify-between"
                         style={{ color: 'var(--text-primary)' }}>
                         {m}
                         {model === m && <Check size={11} style={{ color: 'var(--accent)' }} />}
@@ -289,7 +289,7 @@ export function AISettingsModal({ onClose }: Props) {
                     onBlur={e => (e.target.style.borderColor = 'var(--border-subtle)')}
                   />
                   <button onClick={() => setShowKey(v => !v)}
-                    className="absolute right-2.5 p-0.5 rounded transition-colors hover:bg-white/10"
+                    className="absolute right-2.5 p-0.5 rounded transition-colors hover:bg-white/[0.10]"
                     style={{ color: 'var(--text-tertiary)' }}>
                     {showKey ? <EyeOff size={12} /> : <Eye size={12} />}
                   </button>

@@ -89,7 +89,7 @@ function CodeBlock({ lang, code, onApply }: { lang: string; code: string; onAppl
             </button>
           )}
           <button onClick={async () => { await navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-            className="p-1 rounded transition-colors hover:bg-white/8" style={{ color: 'var(--text-tertiary)' }}>
+            className="p-1 rounded transition-colors hover:bg-white/[0.08]" style={{ color: 'var(--text-tertiary)' }}>
             {copied ? <Check size={11} className="text-green-400" /> : <Copy size={11} />}
           </button>
         </div>
@@ -326,7 +326,7 @@ export function AIPanel({ currentContent, onApply, onClose, onOpenSettings, sett
         <div className="flex items-center gap-1 flex-shrink-0">
           {messages.length > 0 && (
             <button onClick={resetChat}
-              className="p-1.5 rounded transition-colors hover:bg-white/8"
+              className="p-1.5 rounded transition-colors hover:bg-white/[0.08]"
               style={{ color: 'var(--text-secondary)' }}
               title={t('ai.resetChat')}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -336,12 +336,12 @@ export function AIPanel({ currentContent, onApply, onClose, onOpenSettings, sett
             </button>
           )}
           <button onClick={onOpenSettings}
-            className="p-1.5 rounded transition-colors hover:bg-white/8"
+            className="p-1.5 rounded transition-colors hover:bg-white/[0.08]"
             style={{ color: 'var(--text-secondary)' }}
             title={t('ai.providerSettings')}>
             <Settings2 size={13} />
           </button>
-          <button onClick={onClose} className="p-1.5 rounded transition-colors hover:bg-white/8"
+          <button onClick={onClose} className="p-1.5 rounded transition-colors hover:bg-white/[0.08]"
             style={{ color: 'var(--text-secondary)' }}>
             <X size={14} />
           </button>

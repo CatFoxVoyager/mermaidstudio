@@ -143,7 +143,7 @@ export function AdvancedStylePanel({ isOpen, onClose, currentContent, onContentC
           </div>
           <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Advanced Styling</span>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded transition-colors hover:bg-white/8"
+        <button onClick={onClose} className="p-1.5 rounded transition-colors hover:bg-white/[0.08]"
           style={{ color: 'var(--text-secondary)' }}>
           <X size={14} />
         </button>

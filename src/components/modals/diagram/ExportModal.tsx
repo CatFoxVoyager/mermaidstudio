@@ -89,7 +89,7 @@ ${diagramContent}
             <span className="text-[10px] truncate max-w-[150px] block" style={{ color: 'var(--text-tertiary)' }}>{diagramTitle}</span>
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded transition-colors hover:bg-white/8"
+        <button onClick={onClose} className="p-1.5 rounded transition-colors hover:bg-white/[0.08]"
           style={{ color: 'var(--text-secondary)' }}>
           <X size={14} />
         </button>

@@ -53,7 +53,7 @@ export function Modal({
       aria-labelledby="modal-title"
     >
       <div
-        className="absolute inset-0 bg-black/50 animate-fade-in"
+        className="absolute inset-0 bg-black/[0.50] animate-fade-in"
         data-testid="modal-overlay"
         onClick={onClose}
       />
@@ -84,7 +84,7 @@ export function Modal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg transition-colors hover:bg-white/8"
+            className="p-1.5 rounded-lg transition-colors hover:bg-white/[0.08]"
             style={{ color: 'var(--text-secondary)' }}
             aria-label="Close modal"
           >
