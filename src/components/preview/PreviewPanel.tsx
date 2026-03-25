@@ -520,6 +520,9 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
 
   const type = detectDiagramType(content);
 
+  // Check if a color palette is already applied
+  const activePalette = extractCurrentPalette(content);
+
   // Get selected node color style from nodeColorStyles
   const selectedNodeStyle = selectedNodeId
     ? nodeColorStyles.find(n => n.id === selectedNodeId) ?? null
@@ -564,7 +567,7 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
             </button>
           )}
           <div className="w-px h-4 mx-1" style={{ background: 'var(--border-subtle)' }} />
-          {onChange && nodeColorStyles.length > 0 && (
+          {onChange && nodeColorStyles.length > 0 && !activePalette && (
             <button
               onClick={() => setShowNodeColorsPanel(!showNodeColorsPanel)}
               title="Node Colors"
