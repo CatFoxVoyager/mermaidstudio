@@ -15,7 +15,7 @@ import {
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage } = useLanguage();
-  const { toasts, showToast, dismiss } = useToast();
+  const { toasts, show: showToast, dismiss } = useToast();
   const { tabs, activeTabId, activeTab, setActiveTabId, openDiagram, closeTab, updateTabContent, saveTab } = useTabs();
 
   const [sidebarOpen, setSidebarOpen] = useState(true);

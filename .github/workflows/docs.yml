@@ -82,14 +82,14 @@ jobs:
 
           # Generate comprehensive report
           cat > docs/reports/documentation-status.md << EOF
-# Documentation Status Report
-Generated: $(date -u +"%Y-%m-%d %T UTC")
+          # Documentation Status Report
+          Generated: $(date -u +"%Y-%m-%d %T UTC")
 
-## Overview
-This report provides insights into the documentation status and areas for improvement.
+          ## Overview
+          This report provides insights into the documentation status and areas for improvement.
 
-## Files Inventory
-EOF
+          ## Files Inventory
+          EOF
 
           # List all documentation files
           echo "" >> docs/reports/documentation-status.md

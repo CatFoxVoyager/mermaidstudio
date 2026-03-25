@@ -12,6 +12,14 @@ interface NodeStyle {
   color: string;
 }
 
+interface DiagramColorsPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+  currentContent: string;
+  onContentChange: (content: string) => void;
+  theme: 'dark' | 'light';
+}
+
 // Simple node parser to extract node IDs and labels from Mermaid code
 function extractNodes(content: string): Array<{ id: string; label: string }> {
   const nodes: Array<{ id: string; label: string }> = [];
@@ -225,14 +233,6 @@ function applyNodeStyles(content: string, nodeStyles: NodeStyle[]): string {
   return cleaned.trim() + styleSection;
 }
 
-interface DiagramColorsPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-  currentContent: string;
-  onContentChange: (content: string) => void;
-  theme: 'dark' | 'light';
-}
-
 function stripThemeDirective(content: string): string {
   return content
     .replace(/^\s*---[\s\S]*?---\s*/i, '')
@@ -274,6 +274,13 @@ const PREDEFINED_COLORS = [
   '#F3F4F6', '#D1D5DB', '#9CA3AF', '#6B7280',
 ];
 
+const SAMPLE_DIAGRAM = `flowchart TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Process A]
+    B -->|No| D[Process B]
+    C --> E[End]
+    D --> E`;
+
 export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentChange, theme }: DiagramColorsPanelProps) {
   const { t } = useTranslation();
   const isDark = theme === 'dark';
@@ -286,7 +293,7 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
 
   // Node Styles state
   const [nodeStyles, setNodeStyles] = useState<NodeStyle[]>([]);
-  const [showNodeStyles, setShowNodeStyles] = useState(false);
+  const [showNodeColorsPicker, setShowNodeColorsPicker] = useState(false);
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
 
   // Initialize node styles from current content
@@ -318,15 +325,8 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
     const palette = selectedPalette;
     if (palette) {
       const id = ++previewIdRef.current;
-      const sampleDiagram = `flowchart TD
-    A[Start] --> B{Decision}
-    B -->|Yes| C[Process A]
-    B -->|No| D[Process B]
-    C --> E[End]
-    D --> E`;
-
-      const nodeColors = extractBranchesAndAssignColors(sampleDiagram, palette);
-      const contentWithStyles = applyNodeStyles(sampleDiagram, nodeColors);
+      const nodeColors = extractBranchesAndAssignColors(SAMPLE_DIAGRAM, palette);
+      const contentWithStyles = applyNodeStyles(SAMPLE_DIAGRAM, nodeColors);
 
       renderDiagram(contentWithStyles, `palette_preview_${id}_${Date.now()}`).then(({ svg }) => {
         if (svg && id === previewIdRef.current) {
@@ -346,7 +346,6 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
       const contentWithNodeColors = applyNodeStyles(cleanContent, nodeColors);
       onContentChange(contentWithNodeColors);
       setNodeStyles(nodeColors);
-      setSelectedPalette(null);
     }
   };
 
@@ -512,143 +511,133 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
               {/* Preview Section - Below the palette colors, shown on click */}
               {showPreview && (
                 <div className="border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-                  <div className="px-3 py-2 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+                  <div className="px-3 py-2 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-subtle)' }}>
                     <span className="text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>
                       Preview
                     </span>
+                    <button
+                      onClick={() => setShowNodeColorsPicker(!showNodeColorsPicker)}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-medium transition-colors"
+                      style={{
+                        color: showNodeColorsPicker ? 'white' : 'var(--accent)',
+                        background: showNodeColorsPicker ? 'var(--accent)' : 'transparent',
+                        border: showNodeColorsPicker ? 'none' : '1px solid var(--accent)'
+                      }}
+                    >
+                      <Hash size={10} />
+                      {showNodeColorsPicker ? 'Hide Colors' : 'Color Nodes'}
+                    </button>
                   </div>
-                  <div
-                    className="flex justify-center items-center overflow-auto"
-                    style={{
-                      background: isDark ? '#0d1117' : '#ffffff',
-                      maxHeight: '200px'
-                    }}
-                  >
+                  <div className="relative">
+                    {/* Preview Diagram */}
                     <div
-                      className="pointer-events-none p-2"
-                      dangerouslySetInnerHTML={{ __html: sanitizeSVG(previewSvg) }}
-                    />
+                      className="flex justify-center items-center overflow-auto"
+                      style={{
+                        background: isDark ? '#0d1117' : '#ffffff',
+                        maxHeight: '180px'
+                      }}
+                    >
+                      <div
+                        className="pointer-events-none p-2"
+                        dangerouslySetInnerHTML={{ __html: sanitizeSVG(previewSvg) }}
+                      />
+                    </div>
+
+                    {/* Floating Node Colors Picker */}
+                    {showNodeColorsPicker && nodeStyles.length > 0 && (
+                      <div
+                        className="absolute border rounded-lg shadow-lg z-10"
+                        style={{
+                          background: 'var(--surface-raised)',
+                          borderColor: 'var(--border-subtle)',
+                          bottom: '10px',
+                          left: '10px',
+                          right: '10px',
+                          maxHeight: '160px',
+                          overflowY: 'auto'
+                        }}
+                      >
+                        <div className="p-2 border-b sticky top-0" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-base)' }}>
+                          <span className="text-[9px] font-medium" style={{ color: 'var(--text-secondary)' }}>
+                            Click a node to change color
+                          </span>
+                        </div>
+                        <div className="p-2 space-y-1">
+                          {nodeStyles.map((node) => (
+                            <div key={node.id}>
+                              <div
+                                className="flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer hover:bg-white/4 transition-colors"
+                                style={{ background: 'var(--surface-base)', borderColor: 'var(--border-subtle)' }}
+                                onClick={() => toggleNodeExpanded(node.id)}
+                              >
+                                <div
+                                  className="w-4 h-4 rounded border shrink-0"
+                                  style={{ backgroundColor: node.color, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}
+                                />
+                                <span className="text-[9px] truncate flex-1" style={{ color: 'var(--text-primary)' }}>
+                                  {node.label}
+                                </span>
+                                <ChevronDown
+                                  size={10}
+                                  style={{
+                                    color: 'var(--text-tertiary)',
+                                    transform: expandedNodeId === node.id ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    transition: 'transform 0.2s'
+                                  }}
+                                />
+                              </div>
+
+                              {expandedNodeId === node.id && (
+                                <div className="mt-1 p-2 rounded border" style={{ background: 'var(--surface-floating)', borderColor: 'var(--border-subtle)' }}>
+                                  <div className="grid grid-cols-6 gap-1 mb-2">
+                                    {getPaletteColors().slice(0, 12).map((color, index) => (
+                                      <button
+                                        key={`${color}-${index}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleNodeColorChange(node.id, color);
+                                        }}
+                                        className="w-6 h-6 rounded border hover:scale-110 transition-transform"
+                                        style={{
+                                          backgroundColor: color,
+                                          borderColor: node.color === color ? 'var(--accent)' : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'),
+                                          borderWidth: node.color === color ? '2px' : '1px'
+                                        }}
+                                        title={color}
+                                      />
+                                    ))}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Custom:</span>
+                                    <input
+                                      type="text"
+                                      value={node.color}
+                                      onChange={(e) => handleNodeColorChange(node.id, e.target.value)}
+                                      className="flex-1 px-1.5 py-0.5 text-[8px] font-mono rounded border outline-hidden"
+                                      style={{
+                                        background: 'var(--surface-base)',
+                                        borderColor: 'var(--border-subtle)',
+                                        color: 'var(--text-primary)'
+                                      }}
+                                      placeholder="#0066CC"
+                                      maxLength={7}
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
             </div>
           );
         })}
-
-        {/* Individual Node Colors Section */}
-        <div className="pt-3 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-          <button
-            onClick={() => setShowNodeStyles(!showNodeStyles)}
-            className="w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all hover:bg-white/8"
-            style={{ background: 'var(--surface-base)', borderColor: 'var(--border-subtle)' }}
-          >
-            <div className="flex items-center gap-2">
-              <Hash size={14} style={{ color: 'var(--accent)' }} />
-              <span className="text-[11px] font-semibold" style={{ color: 'var(--text-primary)' }}>
-                Individual Node Colors
-              </span>
-            </div>
-            <Plus size={12} style={{ color: 'var(--text-secondary)', transform: showNodeStyles ? 'rotate(45deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-          </button>
-
-          {showNodeStyles && (
-            <div className="mt-2 space-y-2">
-              <div className="flex justify-between items-center px-2">
-                <span className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>
-                  {nodeStyles.length} nodes detected • Click a node to change its color
-                </span>
-                <button
-                  onClick={handleResetToDefault}
-                  className="text-[8px] px-2 py-1 rounded hover:bg-white/8 transition-colors"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Clear All
-                </button>
-              </div>
-
-              <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
-                {nodeStyles.map((node) => (
-                  <div key={node.id}>
-                    <div
-                      className="flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer hover:bg-white/4 transition-colors"
-                      style={{ background: 'var(--surface-base)', borderColor: 'var(--border-subtle)' }}
-                      onClick={() => toggleNodeExpanded(node.id)}
-                    >
-                      <div
-                        className="w-4 h-4 rounded border shrink-0"
-                        style={{ backgroundColor: node.color, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}
-                      />
-                      <span className="text-[9px] font-mono" style={{ color: 'var(--text-secondary)', minWidth: '40px' }}>
-                        {node.id}
-                      </span>
-                      <span className="text-[9px] truncate flex-1" style={{ color: 'var(--text-primary)' }}>
-                        {node.label}
-                      </span>
-                      <ChevronDown
-                        size={10}
-                        style={{
-                          color: 'var(--text-tertiary)',
-                          transform: expandedNodeId === node.id ? 'rotate(180deg)' : 'rotate(0deg)',
-                          transition: 'transform 0.2s'
-                        }}
-                      />
-                    </div>
-
-                    {expandedNodeId === node.id && (
-                      <div className="mt-1 p-2 rounded border" style={{ background: 'var(--surface-floating)', borderColor: 'var(--border-subtle)' }}>
-                        <div className="grid grid-cols-6 gap-1 mb-2">
-                          {getPaletteColors().slice(0, 12).map((color, index) => (
-                            <button
-                              key={`${color}-${index}`}
-                              onClick={(e) => {
-                e.stopPropagation();
-                handleNodeColorChange(node.id, color);
-              }}
-              className="w-6 h-6 rounded border hover:scale-110 transition-transform"
-              style={{
-                backgroundColor: color,
-                borderColor: node.color === color ? 'var(--accent)' : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'),
-                borderWidth: node.color === color ? '2px' : '1px'
-              }}
-              title={color}
-            />
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Custom:</span>
-                          <input
-                            type="text"
-                            value={node.color}
-                            onChange={(e) => handleNodeColorChange(node.id, e.target.value)}
-                            className="flex-1 px-1.5 py-0.5 text-[8px] font-mono rounded border outline-hidden"
-                            style={{
-              background: 'var(--surface-base)',
-              borderColor: 'var(--border-subtle)',
-              color: 'var(--text-primary)'
-            }}
-                            placeholder="#0066CC"
-                            maxLength={7}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {nodeStyles.length === 0 && (
-                  <div className="text-center py-4">
-                    <p className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>
-                      No nodes detected in diagram
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
 }
-
