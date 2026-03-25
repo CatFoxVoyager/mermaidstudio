@@ -651,7 +651,7 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
                   <div>
                     <span className="text-[9px] font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Fill Color</span>
                     <div className="grid grid-cols-6 gap-1 mb-2">
-                      {getPaletteColors().slice(0, 12).map((color, index) => (
+                      {getPaletteColors().map((color, index) => (
                         <button
                           key={`${color}-${index}`}
                           onClick={() => handleNodeColorChange(selectedNodeId, color)}
@@ -720,7 +720,7 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
                         </span>
                       </div>
                       <div className="grid grid-cols-6 gap-1">
-                        {getPaletteColors().slice(0, 12).map((color, index) => (
+                        {getPaletteColors().map((color, index) => (
                           <button
                             key={`${color}-${index}`}
                             onClick={(e) => {
