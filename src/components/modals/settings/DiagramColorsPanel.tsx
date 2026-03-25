@@ -75,21 +75,19 @@ function extractBranchesAndAssignColors(content: string, palette: ColorPalette):
 
   // Parse relationships to build adjacency list (preserving order!)
   const adjacency = new Map<string, string[]>();
-  const reverseAdj = new Map<string, string[]>(); // To find predecessors
+  const reverseAdj = new Map<string, string[]>();
 
-  // Process lines in order to preserve the relationship order
   const lines = content.split('\n');
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('%%') || trimmed.startsWith('---')) continue;
 
-    // Match: A --> B (with optional label)
-    const match = trimmed.match(/^([A-Za-z0-9_]+)\s*-->\s*(?:\|[^\|]+\|)?\s*([A-Za-z0-9_]+)/);
+    // Match relationships with optional node labels: A([Start]) --> B{Decision}
+    const match = trimmed.match(/^([A-Za-z0-9_]+)(?:\([^)]*\)|\[[^\]]*\]|\{[^}]*\}|\(\([^)]*\)\)|\[\[[^\]]*\]\])?\s*-->\s*(?:\|[^|]+\|)?\s*([A-Za-z0-9_]+)/);
     if (match) {
       const [_, from, to] = match;
       if (!adjacency.has(from)) adjacency.set(from, []);
       if (!reverseAdj.has(to)) reverseAdj.set(to, []);
-      // Only add if not already in list (avoid duplicates)
       if (!adjacency.get(from)!.includes(to)) {
         adjacency.get(from)!.push(to);
       }
@@ -99,15 +97,12 @@ function extractBranchesAndAssignColors(content: string, palette: ColorPalette):
     }
   }
 
-  // Detect start nodes (no predecessors)
+  // Detect start nodes
   const startNodes = nodes.filter(n => !reverseAdj.has(n.id));
   if (startNodes.length === 0 && nodes.length > 0) {
     startNodes.push(nodes[0]);
   }
 
-  // Assign colors by tracing branches from start nodes using BFS
-  const assigned = new Map<string, string>();
-  const visited = new Set<string>();
   const branchColors = [
     palette.colors.primary,
     palette.colors.secondary,
@@ -117,7 +112,10 @@ function extractBranchesAndAssignColors(content: string, palette: ColorPalette):
     palette.colors.error,
   ];
 
-  // BFS with branch color tracking
+  const assigned = new Map<string, number>(); // Store colorIndex for each node
+  const visited = new Set<string>();
+
+  // BFS from start nodes
   const queue: Array<{ nodeId: string; colorIndex: number }> = [];
 
   startNodes.forEach(start => {
@@ -130,30 +128,38 @@ function extractBranchesAndAssignColors(content: string, palette: ColorPalette):
     if (visited.has(nodeId)) continue;
     visited.add(nodeId);
 
-    // Assign current color to this node
-    assigned.set(nodeId, branchColors[colorIndex % branchColors.length]);
+    // Assign color index to this node
+    assigned.set(nodeId, colorIndex);
 
-    // Get children and add to queue
+    // Get children in order
     const children = adjacency.get(nodeId) || [];
-    children.forEach((childId, idx) => {
-      if (!visited.has(childId)) {
-        if (idx === 0) {
-          // First child: SAME color (continuation)
-          queue.push({ nodeId: childId, colorIndex });
-        } else {
-          // Other children: NEW color (new branch)
-          queue.push({ nodeId: childId, colorIndex: colorIndex + 1 });
+
+    if (children.length > 1) {
+      // Branching point: first child keeps color, others get incrementally different colors
+      children.forEach((childId, idx) => {
+        if (!visited.has(childId)) {
+          const childColorIndex = (idx === 0) ? colorIndex : (colorIndex + idx);
+          queue.push({ nodeId: childId, colorIndex: childColorIndex });
         }
-      }
-    });
+      });
+    } else {
+      // Single child: continue with same color
+      children.forEach(childId => {
+        if (!visited.has(childId)) {
+          queue.push({ nodeId: childId, colorIndex });
+        }
+      });
+    }
   }
 
-  // Build result array
-  return nodes.map(node => ({
-    id: node.id,
-    label: node.label,
-    color: assigned.get(node.id) || palette.colors.primary
-  }));
+  return nodes.map(node => {
+    const colorIndex = assigned.get(node.id) ?? 0;
+    return {
+      id: node.id,
+      label: node.label,
+      color: branchColors[colorIndex % branchColors.length]
+    };
+  });
 }
 
 // Function to add node styles to Mermaid content
@@ -190,11 +196,6 @@ function applyNodeStyles(content: string, nodeStyles: NodeStyle[]): string {
     return content;
   }
 
-  // Remove existing class definitions and assignments
-  let cleaned = content.replace(/classDef\s+\w+\s+([^\n]+)/gi, '');
-  cleaned = cleaned.replace(/class\s+[^,\n]+(,\s*[^,\n]+)*/gi, '');
-  cleaned = cleaned.trim();
-
   // Helper to determine text color based on background
   function getContrastColor(hexColor: string): string {
     const r = parseInt(hexColor.substr(1, 2), 16);
@@ -215,10 +216,20 @@ function applyNodeStyles(content: string, nodeStyles: NodeStyle[]): string {
     classAssignments.push(`    class ${nodeStyle.id} ${className}`);
   });
 
-  // Add class definitions and assignments AFTER the diagram content
   const styleSection = '\n' + classDefs.join('\n') + '\n' + classAssignments.join('\n');
 
-  return cleaned + styleSection;
+  // Remove old classDef and class statements (entire lines including leading whitespace)
+  let cleaned = content.replace(/^[ \t]*classDef\s+\w+\s+[^\n]*$/gm, '');
+  cleaned = cleaned.replace(/^[ \t]*class\s+[^\n]*$/gm, '');
+  // Clean up multiple consecutive empty lines
+  cleaned = cleaned.replace(/\n\s*\n\s*\n/g, '\n\n');
+
+  // If there's YAML frontmatter, remove it to avoid themeVariables conflicts
+  if (/^\s*---[\s\S]*?---\s*/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^\s*---[\s\S]*?---\s*/i, '');
+  }
+
+  return cleaned.trim() + styleSection;
 }
 
 interface DiagramColorsPanelProps {
@@ -289,20 +300,30 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
   const [showNodeStyles, setShowNodeStyles] = useState(false);
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
 
-  // Extract nodes when content changes
+  // Extract nodes when content changes - but preserve existing colors
   useEffect(() => {
     const nodes = extractNodes(currentContent);
-    // Default color from active palette or fallback
-    const defaultColor = activePalette?.colors.primary || '#0066CC';
-    // Only initialize if we don't have styles yet or if number of nodes changed
-    if (nodeStyles.length === 0 || nodeStyles.length !== nodes.length) {
+    // Only initialize if we don't have styles yet
+    if (nodeStyles.length === 0 && nodes.length > 0) {
+      const defaultColor = activePalette?.colors.primary || '#0066CC';
       const updatedNodes = nodes.map(node => ({
         id: node.id,
         label: node.label,
         color: defaultColor
       }));
       setNodeStyles(updatedNodes);
+    } else if (nodeStyles.length !== nodes.length) {
+      // Number of nodes changed - update labels but preserve existing colors
+      const existingColors = new Map(nodeStyles.map(ns => [ns.id, ns.color]));
+      const defaultColor = activePalette?.colors.primary || '#0066CC';
+      const updatedNodes = nodes.map(node => ({
+        id: node.id,
+        label: node.label,
+        color: existingColors.get(node.id) || defaultColor
+      }));
+      setNodeStyles(updatedNodes);
     }
+    // If same number of nodes, don't update - preserve existing colors
   }, [currentContent]);
 
   // Track if we've already auto-applied for this session
@@ -433,12 +454,19 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
   }, [activePalette?.id]);
 
   const handlePaletteClick = (palette: ColorPalette) => {
-    // Apply immediately
+    // Apply only classDef/class styles, no YAML config
     if (currentContent) {
-      const updatedContent = applyPaletteToContent(currentContent, palette);
-      // Also apply individual node colors based on branches
-      const nodeColors = extractBranchesAndAssignColors(updatedContent, palette);
-      const contentWithNodeColors = applyNodeStyles(updatedContent, nodeColors);
+      // Strip any existing YAML config and classDef/class statements
+      const cleanContent = currentContent
+        .replace(/^\s*---[\s\S]*?---\s*/i, '')
+        .replace(/^[ \t]*classDef\s+\w+\s+[^\n]*$/gm, '')
+        .replace(/^[ \t]*class\s+[^\n]*$/gm, '')
+        .replace(/\n\s*\n\s*\n/g, '\n\n')
+        .trim();
+
+      // Apply individual node colors based on branches using classDef/class
+      const nodeColors = extractBranchesAndAssignColors(cleanContent, palette);
+      const contentWithNodeColors = applyNodeStyles(cleanContent, nodeColors);
       onContentChange(contentWithNodeColors);
       setNodeStyles(nodeColors);
     }
