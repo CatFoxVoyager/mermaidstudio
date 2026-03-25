@@ -1,5 +1,5 @@
-import { RotateCcw, X, Palette, Hash, Plus, ChevronDown } from 'lucide-react';
-import { colorPalettes, applyPaletteToContent, generateMermaidThemeConfig } from '@/constants/colorPalettes';
+import { RotateCcw, X, Palette, Hash, Plus, ChevronDown, Check } from 'lucide-react';
+import { colorPalettes } from '@/constants/colorPalettes';
 import type { ColorPalette } from '@/types';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useRef } from 'react';
@@ -19,13 +19,12 @@ function extractNodes(content: string): Array<{ id: string; label: string }> {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    // Skip comments and empty lines
-    if (!trimmed || trimmed.startsWith('%%') || trimmed.startsWith('---')) continue;
+    // Skip comments, empty lines, and style directives
+    if (!trimmed || trimmed.startsWith('%%') || trimmed.startsWith('---') || trimmed.startsWith('classDef') || trimmed.startsWith('class ')) continue;
 
     // Match patterns like:
     // A[Label]
     // B{Decision}
-    // C[Label]
     // A([Start])
     // A --> B
     const nodeMatch = trimmed.match(/^([A-Za-z0-9_]+)\[([^\]]*)\]/) ||
@@ -37,7 +36,6 @@ function extractNodes(content: string): Array<{ id: string; label: string }> {
     if (nodeMatch) {
       const nodeId = nodeMatch[1];
       let nodeLabel = nodeMatch[2] || nodeId;
-      // Clean up label for display
       nodeLabel = nodeLabel.trim() || nodeId;
       if (!nodes.find(n => n.id === nodeId)) {
         nodes.push({ id: nodeId, label: nodeLabel });
@@ -45,7 +43,7 @@ function extractNodes(content: string): Array<{ id: string; label: string }> {
     }
 
     // Also match nodes that appear in relationships (e.g., A --> B)
-    const relationMatch = trimmed.match(/^([A-Za-z0-9_]+)\s*-->/);
+    const relationMatch = trimmed.match(/^([A-Za-z0-9_]+)(?:\([^)]*\)|\[[^\]]*\]|\{[^}]*\})?\s*-->/);
     if (relationMatch) {
       const nodeId = relationMatch[1];
       if (!nodes.find(n => n.id === nodeId)) {
@@ -54,13 +52,11 @@ function extractNodes(content: string): Array<{ id: string; label: string }> {
     }
 
     // Match target nodes in relationships
-    const targetMatch = trimmed.match(/-->\s*([A-Za-z0-9_]+)/);
+    const targetMatch = trimmed.match(/-->\s*(?:\|[^|]+\|)?\s*([A-Za-z0-9_]+)/);
     if (targetMatch) {
       const nodeId = targetMatch[1];
-      // Remove any label syntax
-      const cleanId = nodeId.split('|')[0].trim();
-      if (!nodes.find(n => n.id === cleanId)) {
-        nodes.push({ id: cleanId, label: cleanId });
+      if (!nodes.find(n => n.id === nodeId)) {
+        nodes.push({ id: nodeId, label: nodeId });
       }
     }
   }
@@ -80,7 +76,7 @@ function extractBranchesAndAssignColors(content: string, palette: ColorPalette):
   const lines = content.split('\n');
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('%%') || trimmed.startsWith('---')) continue;
+    if (!trimmed || trimmed.startsWith('%%') || trimmed.startsWith('---') || trimmed.startsWith('classDef') || trimmed.startsWith('class ')) continue;
 
     // Match relationships with optional node labels: A([Start]) --> B{Decision}
     const match = trimmed.match(/^([A-Za-z0-9_]+)(?:\([^)]*\)|\[[^\]]*\]|\{[^}]*\}|\(\([^)]*\)\)|\[\[[^\]]*\]\])?\s*-->\s*(?:\|[^|]+\|)?\s*([A-Za-z0-9_]+)/);
@@ -112,7 +108,7 @@ function extractBranchesAndAssignColors(content: string, palette: ColorPalette):
     palette.colors.error,
   ];
 
-  const assigned = new Map<string, number>(); // Store colorIndex for each node
+  const assigned = new Map<string, number>();
   const visited = new Set<string>();
 
   // BFS from start nodes
@@ -128,10 +124,8 @@ function extractBranchesAndAssignColors(content: string, palette: ColorPalette):
     if (visited.has(nodeId)) continue;
     visited.add(nodeId);
 
-    // Assign color index to this node
     assigned.set(nodeId, colorIndex);
 
-    // Get children in order
     const children = adjacency.get(nodeId) || [];
 
     if (children.length > 1) {
@@ -143,7 +137,6 @@ function extractBranchesAndAssignColors(content: string, palette: ColorPalette):
         }
       });
     } else {
-      // Single child: continue with same color
       children.forEach(childId => {
         if (!visited.has(childId)) {
           queue.push({ nodeId: childId, colorIndex });
@@ -242,16 +235,25 @@ interface DiagramColorsPanelProps {
 
 function stripThemeDirective(content: string): string {
   return content
-    .replace(/^\s*---[\s\S]*?---\s*/i, '')  // YAML format
-    .replace(/^\s*%%\{init:[\s\S]*?\}%%\s*/i, '')  // Old init format
+    .replace(/^\s*---[\s\S]*?---\s*/i, '')
+    .replace(/^\s*%%\{init:[\s\S]*?\}%%\s*/i, '')
+    .replace(/^[ \t]*classDef\s+\w+\s+[^\n]*$/gm, '')
+    .replace(/^[ \t]*class\s+[^\n]*$/gm, '')
+    .replace(/\n\s*\n\s*\n/g, '\n\n')
     .trim();
 }
 
 function extractCurrentPalette(content: string): ColorPalette | null {
-  // Try YAML format first (primaryColor: '#0066CC' or primaryColor: '#0066CC')
+  // Check for classDef patterns to detect active palette
+  const classDefMatch = content.match(/classDef\s+\w+\s+fill:(#[A-Fa-f0-9]{6})/i);
+  if (classDefMatch) {
+    const primaryColor = classDefMatch[1].toUpperCase();
+    return colorPalettes.find(p => p.colors.primary.toUpperCase() === primaryColor) || null;
+  }
+
+  // Try YAML format
   let match = content.match(/primaryColor:\s*['"]?([^'"\n\s]+)['"]?/);
   if (!match) {
-    // Try old init format
     match = content.match(/'primaryColor'\s*:\s*'([^']+)'/);
   }
   if (!match) {return null;}
@@ -259,40 +261,27 @@ function extractCurrentPalette(content: string): ColorPalette | null {
   return colorPalettes.find(p => p.colors.primary.toUpperCase() === primaryColor) || null;
 }
 
-// predefined colors for the custom color picker
 const PREDEFINED_COLORS = [
-  // Reds
-  '#FF6B6B', '#EE5A5A', '#DC2626', '#B91C1C', '#991B1B',
-  // Oranges
-  '#FFA07A', '#FF9F43', '#F59E0B', '#EA580C', '#C85A17',
-  // Yellows
-  '#FFD93D', '#FCD34D', '#FBBF24', '#EAB308', '#CA8A04',
-  // Greens
-  '#6BCF7F', '#4ADE80', '#22C55E', '#16A34A', '#15803D',
-  // Teals
-  '#2DD4BF', '#14B8A6', '#0D9488', '#0F766E', '#115E59',
-  // Blues
-  '#74C0FC', '#60A5FA', '#3B82F6', '#2563EB', '#1D4ED8',
-  // Indigos
-  '#A78BFA', '#8B5CF6', '#7C3AED', '#6D28D9', '#5B21B6',
-  // Purples
-  '#C084FC', '#A855F7', '#9333EA', '#7E22CE', '#6B21A8',
-  // Pinks
-  '#F472B6', '#EC4899', '#DB2777', '#BE185D', '#9D174D',
-  // Grays
-  '#F3F4F6', '#D1D5DB', '#9CA3AF', '#6B7280', '#374151',
-  // Dark neutrals
-  '#1F2937', '#111827', '#0D1117', '#000000',
+  '#FF6B6B', '#EE5A5A', '#DC2626', '#B91C1C',
+  '#FFA07A', '#FF9F43', '#F59E0B', '#EA580C',
+  '#FFD93D', '#FCD34D', '#FBBF24', '#EAB308',
+  '#6BCF7F', '#4ADE80', '#22C55E', '#16A34A',
+  '#2DD4BF', '#14B8A6', '#0D9488', '#0F766E',
+  '#74C0FC', '#60A5FA', '#3B82F6', '#2563EB',
+  '#A78BFA', '#8B5CF6', '#7C3AED', '#6D28D9',
+  '#C084FC', '#A855F7', '#9333EA', '#7E22CE',
+  '#F472B6', '#EC4899', '#DB2777', '#BE185D',
+  '#F3F4F6', '#D1D5DB', '#9CA3AF', '#6B7280',
 ];
 
 export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentChange, theme }: DiagramColorsPanelProps) {
   const { t } = useTranslation();
   const isDark = theme === 'dark';
-  const hasCustomTheme = currentContent.trimStart().startsWith('%%{init:') || currentContent.trimStart().startsWith('---');
-  const activePalette = hasCustomTheme ? extractCurrentPalette(currentContent) : null;
+  const activePalette = extractCurrentPalette(currentContent);
 
-  // Preview SVG state
+  // Preview state - shows when a palette is clicked (selected)
   const [previewSvg, setPreviewSvg] = useState('');
+  const [selectedPalette, setSelectedPalette] = useState<ColorPalette | null>(null);
   const previewIdRef = useRef(0);
 
   // Node Styles state
@@ -300,89 +289,83 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
   const [showNodeStyles, setShowNodeStyles] = useState(false);
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
 
-  // Extract nodes when content changes - but preserve existing colors
+  // Initialize node styles from current content
   useEffect(() => {
     const nodes = extractNodes(currentContent);
-    // Only initialize if we don't have styles yet
-    if (nodeStyles.length === 0 && nodes.length > 0) {
+    if (nodes.length > 0) {
+      // Extract colors from existing classDef if present
+      const colorMap = new Map<string, string>();
+      const classDefRegex = /classDef\s+\w+\s+fill:(#[A-Fa-f0-9]{6})/gi;
+      let match;
+      let index = 0;
+      while ((match = classDefRegex.exec(currentContent)) !== null && index < nodes.length) {
+        colorMap.set(nodes[index].id, match[1]);
+        index++;
+      }
+
       const defaultColor = activePalette?.colors.primary || '#0066CC';
       const updatedNodes = nodes.map(node => ({
         id: node.id,
         label: node.label,
-        color: defaultColor
-      }));
-      setNodeStyles(updatedNodes);
-    } else if (nodeStyles.length !== nodes.length) {
-      // Number of nodes changed - update labels but preserve existing colors
-      const existingColors = new Map(nodeStyles.map(ns => [ns.id, ns.color]));
-      const defaultColor = activePalette?.colors.primary || '#0066CC';
-      const updatedNodes = nodes.map(node => ({
-        id: node.id,
-        label: node.label,
-        color: existingColors.get(node.id) || defaultColor
+        color: colorMap.get(node.id) || defaultColor
       }));
       setNodeStyles(updatedNodes);
     }
-    // If same number of nodes, don't update - preserve existing colors
-  }, [currentContent]);
+  }, [currentContent, activePalette?.id]);
 
-  // Track if we've already auto-applied for this session
-  const [autoApplied, setAutoApplied] = useState(false);
-
-  // Refs to avoid triggering useEffect on content changes
-  const contentRef = useRef(currentContent);
-  const activePaletteRef = useRef(activePalette);
-
+  // Generate preview for selected palette
   useEffect(() => {
-    contentRef.current = currentContent;
-    activePaletteRef.current = activePalette;
-  }, [currentContent, activePalette]);
+    const palette = selectedPalette;
+    if (palette) {
+      const id = ++previewIdRef.current;
+      const sampleDiagram = `flowchart TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Process A]
+    B -->|No| D[Process B]
+    C --> E[End]
+    D --> E`;
 
-  // Auto-apply node colors when section is opened
-  useEffect(() => {
-    if (showNodeStyles && !autoApplied && activePalette) {
-      // Auto-assign colors by branch structure
-      const autoColoredNodes = extractBranchesAndAssignColors(currentContent, activePalette);
-      setNodeStyles(autoColoredNodes);
-      setAutoApplied(true);
+      const nodeColors = extractBranchesAndAssignColors(sampleDiagram, palette);
+      const contentWithStyles = applyNodeStyles(sampleDiagram, nodeColors);
 
-      // Auto-apply the styles
-      const updatedContent = applyNodeStyles(currentContent, autoColoredNodes);
-      onContentChange(updatedContent);
-    }
-  }, [showNodeStyles, autoApplied, activePalette, currentContent]);
-
-  // Reset auto-applied flag when section is closed
-  useEffect(() => {
-    if (!showNodeStyles) {
-      setAutoApplied(false);
-    }
-  }, [showNodeStyles]);
-
-  // Apply individual node colors
-  const handleApplyNodeStyles = () => {
-    const updatedContent = applyNodeStyles(currentContent, nodeStyles);
-    onContentChange(updatedContent);
-  };
-
-  const handleNodeColorChange = (nodeId: string, color: string) => {
-    setNodeStyles(prev => prev.map(ns => ns.id === nodeId ? { ...ns, color } : ns));
-  };
-
-  const clearNodeStyles = () => {
-    // Remove all node styles
-    const cleaned = currentContent
-      .replace(/classDef\s+\w+\s+([^\n]+)/gi, '')
-      .replace(/class\s+[^,\n]+(,\s*[^,\n]+)*/gi, '')
-      .trim();
-    onContentChange(cleaned);
-    // Reset and re-assign colors by branch
-    if (activePalette) {
-      const autoColoredNodes = extractBranchesAndAssignColors(cleaned, activePalette);
-      setNodeStyles(autoColoredNodes);
+      renderDiagram(contentWithStyles, `palette_preview_${id}_${Date.now()}`).then(({ svg }) => {
+        if (svg && id === previewIdRef.current) {
+          setPreviewSvg(svg);
+        }
+      });
     } else {
-      const defaultColor = '#0066CC';
-      setNodeStyles(prev => prev.map(ns => ({ ...ns, color: defaultColor })));
+      setPreviewSvg('');
+    }
+  }, [selectedPalette?.id]);
+
+  // Apply palette
+  const handleApplyPalette = (palette: ColorPalette) => {
+    if (currentContent) {
+      const cleanContent = stripThemeDirective(currentContent);
+      const nodeColors = extractBranchesAndAssignColors(cleanContent, palette);
+      const contentWithNodeColors = applyNodeStyles(cleanContent, nodeColors);
+      onContentChange(contentWithNodeColors);
+      setNodeStyles(nodeColors);
+      setSelectedPalette(null);
+    }
+  };
+
+  // Apply individual node color change
+  const handleNodeColorChange = (nodeId: string, color: string) => {
+    const updatedStyles = nodeStyles.map(ns => ns.id === nodeId ? { ...ns, color } : ns);
+    setNodeStyles(updatedStyles);
+
+    // Immediately apply to diagram
+    const cleanContent = stripThemeDirective(currentContent);
+    const contentWithNodeColors = applyNodeStyles(cleanContent, updatedStyles);
+    onContentChange(contentWithNodeColors);
+  };
+
+  const handleResetToDefault = () => {
+    if (currentContent) {
+      onContentChange(stripThemeDirective(currentContent));
+      setNodeStyles([]);
+      setSelectedPalette(null);
     }
   };
 
@@ -390,10 +373,8 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
     setExpandedNodeId(expandedNodeId === nodeId ? null : nodeId);
   };
 
-  // Get palette colors for individual node styling
   const getPaletteColors = () => {
     if (!activePalette) {
-      // Default colors when no palette is active
       return PREDEFINED_COLORS;
     }
     const c = activePalette.colors;
@@ -406,7 +387,6 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
       c.error,
       c.neutral_light,
       c.neutral_dark,
-      // Add some variations
       adjustBrightness(c.primary, 20),
       adjustBrightness(c.primary, -20),
       adjustBrightness(c.secondary, 20),
@@ -414,7 +394,6 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
     ];
   };
 
-  // Helper to adjust color brightness
   function adjustBrightness(hex: string, percent: number): string {
     const num = parseInt(hex.replace('#', ''), 16);
     const amt = Math.round(2.55 * percent);
@@ -423,60 +402,6 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
     const B = Math.min(255, Math.max(0, (num & 0x0000FF) + amt));
     return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
   }
-
-  // Generate preview when active palette changes
-  useEffect(() => {
-    if (activePalette) {
-      const id = ++previewIdRef.current;
-      const sampleDiagram = `flowchart TD
-    A[Start] --> B{Decision}
-    B -->|Yes| C[Process A]
-    B -->|No| D[Process B]
-    C --> E[End]
-    D --> E`;
-
-      // Add theme config to sample diagram
-      const themeConfig = generateMermaidThemeConfig(activePalette, undefined, 'flowchart');
-      const contentWithTheme = themeConfig + '\n' + sampleDiagram;
-
-      renderDiagram(contentWithTheme, `palette_preview_${id}_${Date.now()}`).then(({ svg }) => {
-        if (svg && id === previewIdRef.current) {
-          setPreviewSvg(svg);
-        }
-      });
-
-      // Also update node styles with active palette colors
-      const nodeColors = extractBranchesAndAssignColors(contentRef.current, activePalette);
-      setNodeStyles(nodeColors);
-    } else {
-      setPreviewSvg('');
-    }
-  }, [activePalette?.id]);
-
-  const handlePaletteClick = (palette: ColorPalette) => {
-    // Apply only classDef/class styles, no YAML config
-    if (currentContent) {
-      // Strip any existing YAML config and classDef/class statements
-      const cleanContent = currentContent
-        .replace(/^\s*---[\s\S]*?---\s*/i, '')
-        .replace(/^[ \t]*classDef\s+\w+\s+[^\n]*$/gm, '')
-        .replace(/^[ \t]*class\s+[^\n]*$/gm, '')
-        .replace(/\n\s*\n\s*\n/g, '\n\n')
-        .trim();
-
-      // Apply individual node colors based on branches using classDef/class
-      const nodeColors = extractBranchesAndAssignColors(cleanContent, palette);
-      const contentWithNodeColors = applyNodeStyles(cleanContent, nodeColors);
-      onContentChange(contentWithNodeColors);
-      setNodeStyles(nodeColors);
-    }
-  };
-
-  const handleResetToDefault = () => {
-    if (currentContent) {
-      onContentChange(stripThemeDirective(currentContent));
-    }
-  };
 
   if (!isOpen) {return null;}
 
@@ -500,19 +425,14 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {hasCustomTheme && (
+        {/* Reset Button */}
+        {activePalette && (
           <button
             onClick={handleResetToDefault}
             className="w-full p-3 rounded-lg border text-left transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2.5"
             style={{
               background: isDark ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.04)',
               borderColor: isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.15)',
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.borderColor = isDark ? 'rgba(239,68,68,0.5)' : 'rgba(239,68,68,0.4)';
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.borderColor = isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.15)';
             }}
           >
             <div className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
@@ -524,107 +444,98 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
                 Reset to Default
               </p>
               <p className="text-[9px] mt-0.5 leading-snug" style={{ color: 'var(--text-tertiary)' }}>
-                Remove custom palette and use theme colors
+                Remove custom colors and use theme colors
               </p>
             </div>
           </button>
         )}
 
+        {/* Color Palettes */}
         {colorPalettes.map((palette) => {
           const isActive = activePalette?.id === palette.id;
+          const isSelected = selectedPalette?.id === palette.id;
+          const showPreview = isSelected && previewSvg;
+
           return (
-            <button
+            <div
               key={palette.id}
               data-testid="palette-item"
-              onClick={() => handlePaletteClick(palette)}
-              className="w-full p-3 rounded-lg border text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+              onClick={() => setSelectedPalette(palette)}
+              className="rounded-lg border transition-all overflow-hidden cursor-pointer"
               style={{
                 background: isActive
                   ? (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)')
-                  : 'var(--surface-base)',
-                borderColor: isActive ? 'var(--accent)' : 'var(--border-subtle)',
-              }}
-              onMouseEnter={e => {
-                if (activePalette?.id !== palette.id) {
-                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)';
-                  (e.currentTarget as HTMLElement).style.background = 'var(--surface-floating)';
-                }
-              }}
-              onMouseLeave={e => {
-                if (activePalette?.id !== palette.id) {
-                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)';
-                  (e.currentTarget as HTMLElement).style.background = 'var(--surface-base)';
-                }
+                  : (isSelected ? 'var(--surface-floating)' : 'var(--surface-base)'),
+                borderColor: isActive ? 'var(--accent)' : (isSelected ? 'var(--accent)' : 'var(--border-subtle)'),
               }}
               title={palette.description}
             >
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  {palette.name}
-                </p>
-                {isActive && (
-                  <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                    style={{ color: 'var(--accent)', background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}>
-                    Active
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-4 gap-1">
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-full h-6 rounded-sm border" style={{ backgroundColor: palette.colors.primary, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} />
-                  <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Primary</span>
+              <div className="p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {palette.name}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {isActive && (
+                      <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                        style={{ color: 'var(--accent)', background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}>
+                        Active
+                      </span>
+                    )}
+                    {isSelected && !isActive && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleApplyPalette(palette);
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-medium text-white transition-colors hover:opacity-90"
+                        style={{ background: 'var(--accent)' }}
+                      >
+                        <Check size={10} />
+                        Apply
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-full h-6 rounded-sm border" style={{ backgroundColor: palette.colors.secondary, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} />
-                  <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Secondary</span>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-full h-6 rounded-sm border" style={{ backgroundColor: palette.colors.accent, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} />
-                  <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Accent</span>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-full h-6 rounded-sm border" style={{ backgroundColor: palette.colors.success, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} />
-                  <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Success</span>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-full h-6 rounded-sm border" style={{ backgroundColor: palette.colors.warning, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} />
-                  <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Warning</span>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-full h-6 rounded-sm border" style={{ backgroundColor: palette.colors.error, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} />
-                  <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Error</span>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-full h-6 rounded-sm border" style={{ backgroundColor: palette.colors.neutral_light, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} />
-                  <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Light</span>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-full h-6 rounded-sm border" style={{ backgroundColor: palette.colors.neutral_dark, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} />
-                  <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Dark</span>
+                <div className="grid grid-cols-8 gap-1">
+                  <div className="h-5 rounded-sm border" style={{ backgroundColor: palette.colors.primary, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} title="Primary" />
+                  <div className="h-5 rounded-sm border" style={{ backgroundColor: palette.colors.secondary, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} title="Secondary" />
+                  <div className="h-5 rounded-sm border" style={{ backgroundColor: palette.colors.accent, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} title="Accent" />
+                  <div className="h-5 rounded-sm border" style={{ backgroundColor: palette.colors.success, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} title="Success" />
+                  <div className="h-5 rounded-sm border" style={{ backgroundColor: palette.colors.warning, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} title="Warning" />
+                  <div className="h-5 rounded-sm border" style={{ backgroundColor: palette.colors.error, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} title="Error" />
+                  <div className="h-5 rounded-sm border" style={{ backgroundColor: palette.colors.neutral_light, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} title="Light" />
+                  <div className="h-5 rounded-sm border" style={{ backgroundColor: palette.colors.neutral_dark, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} title="Dark" />
                 </div>
               </div>
-              <p className="text-[9px] mt-2 leading-snug" style={{ color: 'var(--text-tertiary)' }}>
-                {palette.description}
-              </p>
 
-              {/* Preview for currently selected/active palette */}
-              {isActive && previewSvg && (
-                <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-                  <div className="h-32 rounded-lg overflow-y-auto overflow-x-hidden flex justify-center border preview-grid"
-                    style={{ background: isDark ? '#0d1117' : '#ffffff', borderColor: 'var(--border-subtle)' }}>
+              {/* Preview Section - Below the palette colors, shown on click */}
+              {showPreview && (
+                <div className="border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                  <div className="px-3 py-2 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+                    <span className="text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>
+                      Preview
+                    </span>
+                  </div>
+                  <div
+                    className="flex justify-center items-center overflow-auto"
+                    style={{
+                      background: isDark ? '#0d1117' : '#ffffff',
+                      maxHeight: '200px'
+                    }}
+                  >
                     <div
-                      className="pointer-events-none"
-                      style={{ transform: 'scale(0.5)', transformOrigin: 'top center', minWidth: '200%' }}
+                      className="pointer-events-none p-2"
                       dangerouslySetInnerHTML={{ __html: sanitizeSVG(previewSvg) }}
                     />
                   </div>
                 </div>
               )}
-            </button>
+            </div>
           );
         })}
 
-        {/* Node Styles Section */}
+        {/* Individual Node Colors Section */}
         <div className="pt-3 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
           <button
             onClick={() => setShowNodeStyles(!showNodeStyles)}
@@ -644,24 +555,15 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
             <div className="mt-2 space-y-2">
               <div className="flex justify-between items-center px-2">
                 <span className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>
-                  {nodeStyles.length} nodes detected • Auto-colored by branch
+                  {nodeStyles.length} nodes detected • Click a node to change its color
                 </span>
-                <div className="flex gap-1">
-                  <button
-                    onClick={clearNodeStyles}
-                    className="text-[8px] px-2 py-1 rounded hover:bg-white/8 transition-colors"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    Clear All
-                  </button>
-                  <button
-                    onClick={handleApplyNodeStyles}
-                    className="text-[8px] px-2 py-1 rounded text-white transition-colors"
-                    style={{ background: 'var(--accent)' }}
-                  >
-                    Re-apply
-                  </button>
-                </div>
+                <button
+                  onClick={handleResetToDefault}
+                  className="text-[8px] px-2 py-1 rounded hover:bg-white/8 transition-colors"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Clear All
+                </button>
               </div>
 
               <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
@@ -694,42 +596,25 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
 
                     {expandedNodeId === node.id && (
                       <div className="mt-1 p-2 rounded border" style={{ background: 'var(--surface-floating)', borderColor: 'var(--border-subtle)' }}>
-                        <div className="mb-2 flex items-center gap-1">
-                          <p className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>
-                            {activePalette ? `From ${activePalette.name}` : 'Default colors'}
-                          </p>
-                        </div>
-                        <div className="grid grid-cols-6 gap-1 mb-1">
-                          {getPaletteColors().slice(0, 12).map((color, index) => {
-                            const isPrimary = activePalette && color === activePalette.colors.primary;
-                            return (
+                        <div className="grid grid-cols-6 gap-1 mb-2">
+                          {getPaletteColors().slice(0, 12).map((color, index) => (
                             <button
                               key={`${color}-${index}`}
                               onClick={(e) => {
-                                e.stopPropagation();
-                                handleNodeColorChange(node.id, color);
-                              }}
-                              className="w-6 h-6 rounded border hover:scale-110 transition-transform relative"
-                              style={{
-                                backgroundColor: color,
-                                borderColor: node.color === color ? 'var(--accent)' : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'),
-                                borderWidth: node.color === color ? '2px' : '1px'
-                              }}
-                              title={isPrimary ? 'Primary color' : color}
-                            >
-                              {isPrimary && (
-                                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full text-[5px] flex items-center justify-center"
-                                  style={{ background: 'var(--accent)', color: 'white' }}>
-                                  ✓
-                                </span>
-                              )}
-                            </button>
-                          )})}
+                e.stopPropagation();
+                handleNodeColorChange(node.id, color);
+              }}
+              className="w-6 h-6 rounded border hover:scale-110 transition-transform"
+              style={{
+                backgroundColor: color,
+                borderColor: node.color === color ? 'var(--accent)' : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'),
+                borderWidth: node.color === color ? '2px' : '1px'
+              }}
+              title={color}
+            />
+                          ))}
                         </div>
-                        <p className="text-[7px] text-center" style={{ color: 'var(--text-tertiary)' }}>
-                          Primary color marked with ✓
-                        </p>
-                        <div className="mt-2 flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                           <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Custom:</span>
                           <input
                             type="text"
@@ -737,27 +622,28 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
                             onChange={(e) => handleNodeColorChange(node.id, e.target.value)}
                             className="flex-1 px-1.5 py-0.5 text-[8px] font-mono rounded border outline-hidden"
                             style={{
-                              background: 'var(--surface-base)',
-                              borderColor: 'var(--border-subtle)',
-                              color: 'var(--text-primary)'
-                            }}
+              background: 'var(--surface-base)',
+              borderColor: 'var(--border-subtle)',
+              color: 'var(--text-primary)'
+            }}
                             placeholder="#0066CC"
                             maxLength={7}
+                            onClick={(e) => e.stopPropagation()}
                           />
                         </div>
                       </div>
                     )}
                   </div>
                 ))}
-              </div>
 
-              {nodeStyles.length === 0 && (
-                <div className="text-center py-4">
-                  <p className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>
-                    No nodes detected in diagram
-                  </p>
-                </div>
-              )}
+                {nodeStyles.length === 0 && (
+                  <div className="text-center py-4">
+                    <p className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>
+                      No nodes detected in diagram
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -765,3 +651,4 @@ export function DiagramColorsPanel({ isOpen, onClose, currentContent, onContentC
     </div>
   );
 }
+
