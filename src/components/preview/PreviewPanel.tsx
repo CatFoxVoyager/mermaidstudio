@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { ZoomIn, ZoomOut, Maximize2, RefreshCw, AlertTriangle, Copy, Check, Download, Move, X, ChevronDown, Hash } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, RefreshCw, AlertTriangle, Copy, Check, Download, Move, X, Hash } from 'lucide-react';
 import { renderDiagram, detectDiagramType } from '@/lib/mermaid/core';
 import { sanitizeSVG } from '@/utils/sanitization';
 import { parseFrontmatter } from '@/lib/mermaid/codeUtils';
@@ -234,7 +234,6 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showNodeColorsPanel, setShowNodeColorsPanel] = useState(false);
   const [nodeColorStyles, setNodeColorStyles] = useState<NodeColorStyle[]>([]);
-  const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const shadowHostRef = useRef<HTMLDivElement>(null);
   const svgContainerRef = useRef<HTMLDivElement>(null);
@@ -442,10 +441,6 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
     const contentWithNodeColors = applyNodeStyles(cleanContent, updatedStyles);
     onChange(contentWithNodeColors);
   }, [nodeColorStyles, content, onChange]);
-
-  const toggleNodeExpanded = useCallback((nodeId: string) => {
-    setExpandedNodeId(expandedNodeId === nodeId ? null : nodeId);
-  }, [expandedNodeId]);
 
   function adjustBrightness(hex: string, percent: number): string {
     const num = parseInt(hex.replace('#', ''), 16);
@@ -698,7 +693,7 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
                 style={{
                   background: 'var(--surface-raised)',
                   borderColor: 'var(--border-subtle)',
-                  maxHeight: '320px',
+                  maxHeight: '400px',
                   overflowY: 'auto'
                 }}
               >
@@ -712,70 +707,36 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
                     <X size={10} />
                   </button>
                 </div>
-                <div className="p-2 space-y-1">
+                <div className="p-2 space-y-2">
                   {nodeColorStyles.map((node) => (
-                    <div key={node.id}>
-                      <div
-                        className="flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer hover:bg-white/4 transition-colors"
-                        style={{ background: 'var(--surface-base)', borderColor: 'var(--border-subtle)' }}
-                        onClick={() => toggleNodeExpanded(node.id)}
-                      >
+                    <div key={node.id} className="p-2 rounded border" style={{ background: 'var(--surface-base)', borderColor: 'var(--border-subtle)' }}>
+                      <div className="flex items-center gap-2 mb-2">
                         <div
                           className="w-4 h-4 rounded border shrink-0"
                           style={{ backgroundColor: node.color, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}
                         />
-                        <span className="text-[9px] truncate flex-1" style={{ color: 'var(--text-primary)' }}>
+                        <span className="text-[9px] truncate flex-1 font-medium" style={{ color: 'var(--text-primary)' }}>
                           {node.label}
                         </span>
-                        <ChevronDown
-                          size={10}
-                          style={{
-                            color: 'var(--text-tertiary)',
-                            transform: expandedNodeId === node.id ? 'rotate(180deg)' : 'rotate(0deg)',
-                            transition: 'transform 0.2s'
-                          }}
-                        />
                       </div>
-
-                      {expandedNodeId === node.id && (
-                        <div className="mt-1 p-2 rounded border" style={{ background: 'var(--surface-floating)', borderColor: 'var(--border-subtle)' }}>
-                          <div className="grid grid-cols-6 gap-1 mb-2">
-                            {getPaletteColors().slice(0, 12).map((color, index) => (
-                              <button
-                                key={`${color}-${index}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleNodeColorChange(node.id, color);
-                                }}
-                                className="w-6 h-6 rounded border hover:scale-110 transition-transform"
-                                style={{
-                                  backgroundColor: color,
-                                  borderColor: node.color === color ? 'var(--accent)' : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'),
-                                  borderWidth: node.color === color ? '2px' : '1px'
-                                }}
-                                title={color}
-                              />
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Custom:</span>
-                            <input
-                              type="text"
-                              value={node.color}
-                              onChange={(e) => handleNodeColorChange(node.id, e.target.value)}
-                              className="flex-1 px-1.5 py-0.5 text-[8px] font-mono rounded border outline-hidden"
-                              style={{
-                                background: 'var(--surface-base)',
-                                borderColor: 'var(--border-subtle)',
-                                color: 'var(--text-primary)'
-                              }}
-                              placeholder="#0066CC"
-                              maxLength={7}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-                        </div>
-                      )}
+                      <div className="grid grid-cols-6 gap-1">
+                        {getPaletteColors().slice(0, 12).map((color, index) => (
+                          <button
+                            key={`${color}-${index}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleNodeColorChange(node.id, color);
+                            }}
+                            className="w-5 h-5 rounded border hover:scale-110 transition-transform"
+                            style={{
+                              backgroundColor: color,
+                              borderColor: node.color === color ? 'var(--accent)' : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'),
+                              borderWidth: node.color === color ? '2px' : '1px'
+                            }}
+                            title={color}
+                          />
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
