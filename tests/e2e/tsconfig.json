@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.node.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "types": ["@playwright/test"],
+    "isolatedModules": false,
+    "allowImportingTsExtensions": false,
+    "noEmit": true
+  },
+  "include": ["**/*.spec.ts", "**/*.ts"]
+}
