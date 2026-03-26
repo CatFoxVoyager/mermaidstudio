@@ -119,26 +119,36 @@ export function AdvancedStylePanel({ isOpen, onClose, currentContent, onContentC
   const baseContentRef = useRef<string>('');
   const isDark = theme === 'dark';
   const isInitialized = useRef(false);
+  const previousContentRef = useRef<string>('');
 
   const isDefault = JSON.stringify(styleOptions) === JSON.stringify(DEFAULT_STYLE_OPTIONS);
 
   // Store base content when panel opens and initialize styles from it
   useEffect(() => {
-    if (isOpen && !isInitialized.current && currentContent) {
-      baseContentRef.current = currentContent;
-      const detectedType = detectDiagramType(currentContent);
-      setDiagramType(detectedType);
+    if (isOpen && currentContent) {
+      // Detect if content has significantly changed (tab switch vs style update)
+      const contentChanged = previousContentRef.current !== currentContent;
+      const isDifferentTab = contentChanged && !currentContent.includes(baseContentRef.current.slice(0, 100));
 
-      const existingStyles = extractStyleOptionsFromContent(currentContent);
-      if (Object.keys(existingStyles).length > 0) {
-        setStyleOptions(prev => ({ ...prev, ...existingStyles }));
+      // Re-initialize if first time, panel was closed, or content is significantly different
+      if (!isInitialized.current || isDifferentTab) {
+        baseContentRef.current = currentContent;
+        const detectedType = detectDiagramType(currentContent);
+        setDiagramType(detectedType);
+
+        const existingStyles = extractStyleOptionsFromContent(currentContent);
+        if (Object.keys(existingStyles).length > 0) {
+          setStyleOptions(prev => ({ ...prev, ...existingStyles }));
+        }
+        isInitialized.current = true;
+        previousContentRef.current = currentContent;
       }
-      isInitialized.current = true;
     } else if (!isOpen) {
       isInitialized.current = false;
       baseContentRef.current = '';
+      previousContentRef.current = '';
     }
-  }, [isOpen]);
+  }, [isOpen, currentContent]);
 
   // Define applyStyles function
   const applyStyles = useCallback((opts: DiagramStyleOptions) => {

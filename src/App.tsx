@@ -56,6 +56,14 @@ export default function App() {
 
   useKeyboardShortcuts(shortcuts);
 
+  // Close diagram-specific panels (colors and advanced styling) when switching tabs
+  useEffect(() => {
+    if (activeTabId) {
+      closeModal('showDiagramColors');
+      closeModal('showAdvancedStyle');
+    }
+  }, [activeTabId, closeModal]);
+
   return (
     <>
       <AppLayout

@@ -1,4 +1,5 @@
 import type { ColorPalette, DiagramStyleOptions, LayoutEngine } from '@/types';
+import { DEFAULT_STYLE_OPTIONS } from '@/types';
 
 export const colorPalettes: ColorPalette[] = [
   {
@@ -310,6 +311,73 @@ function buildThemeVariables(palette: ColorPalette, diagramType?: string): Recor
     mindmapTertiaryTextColor: getContrastColor(c.accent),
   };
 
+  // Journey (User Journey) specific variables
+  const journeyVars: Record<string, string> = {
+    ...flowchartVars,
+    fillType0: c.primary,
+    fillType1: c.secondary,
+    fillType2: c.accent,
+    fillType3: c.success,
+    fillType4: c.warning,
+    fillType5: c.error,
+  };
+
+  // Timeline specific variables
+  const timelineVars: Record<string, string> = {
+    cScale0: c.primary,
+    cScale1: c.secondary,
+    cScale2: c.accent,
+    cScale3: c.success,
+    cScale4: c.warning,
+    cScale5: c.error,
+    cScale6: c.neutral_dark,
+    cScale7: c.primary,
+    cScale8: c.secondary,
+    cScale9: c.accent,
+    cScale10: c.success,
+    cScale11: c.warning,
+    cScaleLabel0: getContrastColor(c.primary),
+    cScaleLabel1: getContrastColor(c.secondary),
+    cScaleLabel2: getContrastColor(c.accent),
+    cScaleLabel3: getContrastColor(c.success),
+    cScaleLabel4: getContrastColor(c.warning),
+    cScaleLabel5: getContrastColor(c.error),
+    cScaleLabel6: getContrastColor(c.neutral_dark),
+    cScaleLabel7: getContrastColor(c.primary),
+    cScaleLabel8: getContrastColor(c.secondary),
+    cScaleLabel9: getContrastColor(c.accent),
+    cScaleLabel10: getContrastColor(c.success),
+    cScaleLabel11: getContrastColor(c.warning),
+  };
+
+  // Block diagram specific variables
+  const blockVars: Record<string, string> = {
+    ...flowchartVars,
+    blockBkg: c.primary,
+    blockBorder: c.secondary,
+  };
+
+  // C4 Context specific variables
+  const c4Vars: Record<string, string> = {
+    ...flowchartVars,
+    personBackgroundColor: c.primary,
+    personBorderColor: c.secondary,
+    personTextColor: getContrastColor(c.primary),
+    systemBackgroundColor: c.accent,
+    systemBorderColor: c.primary,
+    systemTextColor: getContrastColor(c.accent),
+    containerBackgroundColor: c.secondary,
+    containerBorderColor: c.primary,
+    containerTextColor: getContrastColor(c.secondary),
+  };
+
+  // Architecture diagram specific variables
+  const architectureVars: Record<string, string> = {
+    ...flowchartVars,
+    groupBackgroundColor: c.neutral_light,
+    groupBorderColor: c.secondary,
+  };
+
   // Variables per diagram type
   const typeVars: Record<string, Record<string, string>> = {
     flowchart: flowchartVars,
@@ -330,12 +398,20 @@ function buildThemeVariables(palette: ColorPalette, diagramType?: string): Recor
     gitgraph: gitVars,
     git: gitVars,
     mindmap: mindmapVars,
-    journey: flowchartVars,
-    timeline: ganttVars,
+    journey: journeyVars,
+    userjourney: journeyVars,
+    timeline: timelineVars,
     quadrantchart: pieVars,
-    block: flowchartVars,
-    architecture: flowchartVars,
-    c4: flowchartVars,
+    quadrantChart: pieVars,
+    block: blockVars,
+    blockdiagram: blockVars,
+    blockDiagram: blockVars,
+    architecture: architectureVars,
+    architecturediagram: architectureVars,
+    architectureDiagram: architectureVars,
+    c4: c4Vars,
+    c4context: c4Vars,
+    c4Context: c4Vars,
   };
 
   // Combine common vars with type-specific vars
@@ -426,7 +502,9 @@ export function generateStyleOnlyConfig(styleOptions: DiagramStyleOptions, diagr
     case 'journey':
     case 'c4':
     case 'block':
+    case 'blockDiagram':
     case 'architecture':
+    case 'architectureDiagram':
       config.flowchart = {
         curve: styleOptions.curveStyle,
         padding: styleOptions.nodePadding,
@@ -451,6 +529,10 @@ export function generateStyleOnlyConfig(styleOptions: DiagramStyleOptions, diagr
         boxMargin: styleOptions.boxMargin ?? 10,
         mirrorActors: styleOptions.mirrorActors ?? false,
         useMaxWidth: true,
+        messageAlign: styleOptions.messageAlign ?? 'center',
+        rightAngles: styleOptions.rightAngles ?? false,
+        showSequenceNumbers: styleOptions.showSequenceNumbers ?? false,
+        wrap: styleOptions.wrap ?? false,
       };
       break;
 
@@ -466,6 +548,19 @@ export function generateStyleOnlyConfig(styleOptions: DiagramStyleOptions, diagr
       };
       break;
 
+    case 'mindmap':
+      config.mindmap = {
+        maxNodeWidth: styleOptions.maxNodeWidth ?? 200,
+        maxNodeHeight: styleOptions.maxNodeHeight ?? 200,
+        maxTextWidth: styleOptions.maxTextWidth ?? 100,
+        padding: styleOptions.padding ?? 15,
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
+      if (styleOptions.layoutEngine && styleOptions.layoutEngine !== 'dagre') {
+        config.layout = styleOptions.layoutEngine;
+      }
+      break;
+
     case 'statediagram':
     case 'state':
     case 'stateDiagram':
@@ -475,18 +570,65 @@ export function generateStyleOnlyConfig(styleOptions: DiagramStyleOptions, diagr
     case 'erdiagram':
     case 'er':
     case 'erDiagram':
-      // These use flowchart config for layout
       config.flowchart = {
         curve: styleOptions.curveStyle,
-        padding: styleOptions.nodePadding,
+        padding: styleOptions.padding ?? 15,
         htmlLabels: true,
         nodeSpacing: styleOptions.nodeSpacing,
         rankSpacing: styleOptions.rankSpacing,
-        useMaxWidth: styleOptions.useMaxWidth,
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
       };
       if (styleOptions.layoutEngine && styleOptions.layoutEngine !== 'dagre') {
         config.layout = styleOptions.layoutEngine;
       }
+      // ER diagram specific
+      if (type.includes('er') || type === 'erdiagram' || type === 'erDiagram') {
+        config.erDiagram = {
+          minEntityWidth: styleOptions.minEntityWidth ?? 100,
+          minEntityHeight: styleOptions.minEntityHeight ?? 75,
+          useMaxWidth: styleOptions.useMaxWidth ?? true,
+        };
+      }
+      break;
+
+    case 'pie':
+      config.pie = {
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
+      break;
+
+    case 'timeline':
+      config.timeline = {
+        disableMulticolor: styleOptions.disableMulticolor ?? false,
+        htmlLabels: styleOptions.htmlLabels ?? false,
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
+      break;
+
+    case 'quadrantchart':
+    case 'quadrantChart':
+      config.quadrantChart = {
+        chartWidth: styleOptions.chartWidth ?? 500,
+        chartHeight: styleOptions.chartHeight ?? 500,
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
+      break;
+
+    case 'xychart':
+    case 'xyChart':
+      config.xyChart = {
+        showDataLabel: styleOptions.showDataLabel ?? false,
+        xAxisTitle: styleOptions.xAxisTitle ?? '',
+        yAxisTitle: styleOptions.yAxisTitle ?? '',
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
+      break;
+
+    case 'gitgraph':
+    case 'gitGraph':
+      config.gitGraph = {
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
       break;
 
     default:
@@ -503,19 +645,194 @@ export function applyStyleToContent(content: string, styleOptions: DiagramStyleO
 
   // Parse existing YAML config to preserve color settings
   const existingConfig = extractExistingConfig(content);
-  const styleConfig = generateStyleOnlyConfig(styleOptions, diagramType);
 
-  // If there's existing config, merge styles with it (preserving colors)
+  // If there's existing config (palette applied), merge styles with it (preserving colors)
   if (existingConfig) {
     const mergedConfig = mergeConfigWithStyles(existingConfig, styleOptions, diagramType);
     return `---\nconfig:\n${objectToYaml(mergedConfig, 2)}---\n\n${stripped}`;
   }
 
-  return styleConfig + '\n\n' + stripped;
+  // No palette exists - generate minimal config without theme to avoid applying colors
+  // Only include the specific config section for the diagram type (sequence, gantt, etc.)
+  const type = diagramType || detectDiagramTypeFromContent(stripped);
+
+  // Build minimal config with only type-specific sections, NO theme
+  const minimalConfig: Record<string, unknown> = {};
+  let hasNonFontConfig = false; // Track if we have actual diagram config (not just fonts)
+
+  switch (type) {
+    case 'sequence':
+    case 'sequencediagram':
+      if (styleOptions.diagramMarginX !== undefined) minimalConfig.diagramMarginX = styleOptions.diagramMarginX;
+      if (styleOptions.diagramMarginY !== undefined) minimalConfig.diagramMarginY = styleOptions.diagramMarginY;
+      if (styleOptions.actorMargin !== undefined) minimalConfig.actorMargin = styleOptions.actorMargin;
+      if (styleOptions.actorWidth !== undefined) minimalConfig.width = styleOptions.actorWidth;
+      if (styleOptions.actorHeight !== undefined) minimalConfig.height = styleOptions.actorHeight;
+      if (styleOptions.boxMargin !== undefined) minimalConfig.boxMargin = styleOptions.boxMargin;
+      if (styleOptions.mirrorActors !== undefined) minimalConfig.mirrorActors = styleOptions.mirrorActors;
+      if (styleOptions.messageAlign !== undefined) minimalConfig.messageAlign = styleOptions.messageAlign;
+      if (styleOptions.rightAngles !== undefined) minimalConfig.rightAngles = styleOptions.rightAngles;
+      if (styleOptions.showSequenceNumbers !== undefined) minimalConfig.showSequenceNumbers = styleOptions.showSequenceNumbers;
+      if (styleOptions.wrap !== undefined) minimalConfig.wrap = styleOptions.wrap;
+      if (Object.keys(minimalConfig).length > 0) {
+        minimalConfig.useMaxWidth = true;
+        hasNonFontConfig = true;
+      }
+      break;
+
+    case 'gantt':
+      if (styleOptions.titleTopMargin !== undefined) minimalConfig.titleTopMargin = styleOptions.titleTopMargin;
+      if (styleOptions.barHeight !== undefined) minimalConfig.barHeight = styleOptions.barHeight;
+      if (styleOptions.barGap !== undefined) minimalConfig.barGap = styleOptions.barGap;
+      if (styleOptions.topPadding !== undefined) minimalConfig.topPadding = styleOptions.topPadding;
+      if (styleOptions.leftPadding !== undefined) minimalConfig.leftPadding = styleOptions.leftPadding;
+      if (styleOptions.axisFormat !== undefined) minimalConfig.axisFormat = styleOptions.axisFormat;
+      if (styleOptions.sectionMargin !== undefined) minimalConfig.sectionMargin = styleOptions.sectionMargin;
+      if (Object.keys(minimalConfig).length > 0) {
+        minimalConfig.useMaxWidth = true;
+        hasNonFontConfig = true;
+      }
+      break;
+
+    case 'mindmap':
+      if (styleOptions.maxNodeWidth !== undefined) minimalConfig.maxNodeWidth = styleOptions.maxNodeWidth;
+      if (styleOptions.maxNodeHeight !== undefined) minimalConfig.maxNodeHeight = styleOptions.maxNodeHeight;
+      if (styleOptions.maxTextWidth !== undefined) minimalConfig.maxTextWidth = styleOptions.maxTextWidth;
+      if (styleOptions.padding !== undefined) minimalConfig.padding = styleOptions.padding;
+      if (Object.keys(minimalConfig).length > 0) {
+        minimalConfig.useMaxWidth = true;
+        hasNonFontConfig = true;
+      }
+      // Add layout engine if specified
+      if (styleOptions.layoutEngine && styleOptions.layoutEngine !== 'dagre') {
+        minimalConfig.layout = styleOptions.layoutEngine;
+      }
+      break;
+
+    case 'flowchart':
+    case 'graph':
+    case 'journey':
+    case 'c4':
+    case 'block':
+    case 'blockDiagram':
+    case 'architecture':
+    case 'architectureDiagram':
+    case 'stateDiagram':
+    case 'state':
+    case 'classDiagram':
+    case 'class':
+    case 'erDiagram':
+    case 'er':
+      // For flowchart-based diagrams, include flowchart config without theme
+      if (styleOptions.curveStyle !== undefined) minimalConfig.curve = styleOptions.curveStyle;
+      if (styleOptions.nodePadding !== undefined) minimalConfig.padding = styleOptions.nodePadding;
+      if (styleOptions.nodeSpacing !== undefined) minimalConfig.nodeSpacing = styleOptions.nodeSpacing;
+      if (styleOptions.rankSpacing !== undefined) minimalConfig.rankSpacing = styleOptions.rankSpacing;
+      if (styleOptions.useMaxWidth !== undefined) minimalConfig.useMaxWidth = styleOptions.useMaxWidth;
+      if (Object.keys(minimalConfig).length > 0) {
+        minimalConfig.htmlLabels = true;
+        hasNonFontConfig = true;
+      }
+      if (styleOptions.layoutEngine && styleOptions.layoutEngine !== 'dagre') {
+        minimalConfig.layout = styleOptions.layoutEngine;
+      }
+      break;
+
+    case 'pie':
+    case 'pieChart':
+      if (styleOptions.useMaxWidth !== undefined) minimalConfig.useMaxWidth = styleOptions.useMaxWidth;
+      if (Object.keys(minimalConfig).length > 0) {
+        hasNonFontConfig = true;
+      }
+      break;
+
+    case 'timeline':
+      if (styleOptions.disableMulticolor !== undefined) minimalConfig.disableMulticolor = styleOptions.disableMulticolor;
+      if (styleOptions.htmlLabels !== undefined) minimalConfig.htmlLabels = styleOptions.htmlLabels;
+      if (styleOptions.useMaxWidth !== undefined) minimalConfig.useMaxWidth = styleOptions.useMaxWidth;
+      if (Object.keys(minimalConfig).length > 0) {
+        hasNonFontConfig = true;
+      }
+      break;
+
+    case 'quadrantchart':
+    case 'quadrantChart':
+    case 'quadrant':
+      if (styleOptions.chartWidth !== undefined || styleOptions.chartHeight !== undefined || styleOptions.useMaxWidth !== undefined) {
+        minimalConfig.quadrantChart = {
+          chartWidth: styleOptions.chartWidth ?? 500,
+          chartHeight: styleOptions.chartHeight ?? 500,
+          useMaxWidth: styleOptions.useMaxWidth ?? true,
+        };
+        hasNonFontConfig = true;
+      }
+      break;
+
+    case 'xychart':
+    case 'xyChart':
+    case 'xy':
+      if (styleOptions.showDataLabel !== undefined || styleOptions.xAxisTitle !== undefined || styleOptions.yAxisTitle !== undefined || styleOptions.useMaxWidth !== undefined) {
+        minimalConfig.xyChart = {
+          showDataLabel: styleOptions.showDataLabel ?? false,
+          xAxisTitle: styleOptions.xAxisTitle ?? '',
+          yAxisTitle: styleOptions.yAxisTitle ?? '',
+          useMaxWidth: styleOptions.useMaxWidth ?? true,
+        };
+        hasNonFontConfig = true;
+      }
+      break;
+
+    default:
+      // For unsupported types, just ensure useMaxWidth if set
+      if (styleOptions.useMaxWidth !== undefined) {
+        minimalConfig.useMaxWidth = styleOptions.useMaxWidth;
+        hasNonFontConfig = true;
+      }
+      break;
+  }
+
+  // Add font settings to themeVariables for all diagram types
+  // NOTE: Only add themeVariables if we have actual diagram config.
+  // Font-only changes WITHOUT a palette should NOT generate YAML to avoid
+  // Mermaid applying default colors (including the beige background).
+  if (hasNonFontConfig) {
+    if (styleOptions.fontFamily !== undefined) {
+      minimalConfig.themeVariables = {
+        ...(minimalConfig.themeVariables as Record<string, unknown> | {}),
+        fontFamily: styleOptions.fontFamily,
+      };
+    }
+    if (styleOptions.fontSize !== undefined) {
+      minimalConfig.themeVariables = {
+        ...(minimalConfig.themeVariables as Record<string, unknown> | {}),
+        fontSize: styleOptions.fontSize + 'px',
+      };
+    }
+  }
+
+  // Only generate YAML if we have actual settings to apply (not just fonts without palette)
+  if (!hasNonFontConfig) {
+    return stripped;
+  }
+
+  // Generate YAML WITHOUT theme base to avoid applying default colors, but with themeVariables for fonts
+  return `---\nconfig:\n${objectToYaml(minimalConfig, 2)}---\n\n${stripped}`;
 }
 
 function extractExistingConfig(content: string): Record<string, unknown> | null {
-  const yamlMatch = content.match(/^\s*---\nconfig:\n([\s\S]*?)---/i);
+  // More flexible YAML frontmatter matching - handle various formats
+  let yamlMatch = content.match(/^\s*---\s*\nconfig:\s*\n([\s\S]*?)\n---/i);
+  
+  // Also try alternative format with --- on same line as config:
+  if (!yamlMatch) {
+    yamlMatch = content.match(/^\s*---\s*config:\s*\n([\s\S]*?)---/i);
+  }
+  
+  // Try without config: prefix (just --- ... ---)
+  if (!yamlMatch) {
+    yamlMatch = content.match(/^\s*---\s*\n([\s\S]*?)---/i);
+  }
+  
   if (!yamlMatch) return null;
 
   try {
@@ -556,13 +873,13 @@ function extractExistingConfig(content: string): Record<string, unknown> | null 
         continue;
       }
 
-      // Parse key-value pairs within current section
+      // Parse key-value pairs within current section - more permissive regex
       if (currentSection) {
         const indent = line.search(/\S/);
-        const isNested = inThemeVariables && indent > themeVarsIndent;
 
-        // Only parse direct children of current section
-        const kvMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.+)$/);
+        // Match keys with letters, numbers, underscores, and common symbols
+        // This allows for theme variable names like primaryColor, pie1, cScale0, etc.
+        const kvMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.*)$/);
         if (kvMatch) {
           const key = kvMatch[1];
           let value = kvMatch[2];
@@ -617,7 +934,9 @@ function mergeConfigWithStyles(existingConfig: Record<string, unknown>, styleOpt
     case 'journey':
     case 'c4':
     case 'block':
-    case 'architecture': {
+    case 'blockDiagram':
+    case 'architecture':
+    case 'architectureDiagram': {
       // Preserve existing flowchart config where applicable
       const existingFlowchart = existingConfig.flowchart as Record<string, unknown> | undefined;
       result.flowchart = {
@@ -648,6 +967,10 @@ function mergeConfigWithStyles(existingConfig: Record<string, unknown>, styleOpt
         boxMargin: styleOptions.boxMargin ?? 10,
         mirrorActors: styleOptions.mirrorActors ?? false,
         useMaxWidth: true,
+        messageAlign: styleOptions.messageAlign ?? 'center',
+        rightAngles: styleOptions.rightAngles ?? false,
+        showSequenceNumbers: styleOptions.showSequenceNumbers ?? false,
+        wrap: styleOptions.wrap ?? false,
       };
       break;
     }
@@ -667,6 +990,22 @@ function mergeConfigWithStyles(existingConfig: Record<string, unknown>, styleOpt
       break;
     }
 
+    case 'mindmap': {
+      const existingMindmap = existingConfig.mindmap as Record<string, unknown> | undefined;
+      result.mindmap = {
+        ...(existingMindmap || {}),
+        maxNodeWidth: styleOptions.maxNodeWidth ?? 200,
+        maxNodeHeight: styleOptions.maxNodeHeight ?? 200,
+        maxTextWidth: styleOptions.maxTextWidth ?? 100,
+        padding: styleOptions.padding ?? 15,
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
+      if (styleOptions.layoutEngine && styleOptions.layoutEngine !== 'dagre') {
+        result.layout = styleOptions.layoutEngine;
+      }
+      break;
+    }
+
     case 'statediagram':
     case 'state':
     case 'stateDiagram':
@@ -681,15 +1020,80 @@ function mergeConfigWithStyles(existingConfig: Record<string, unknown>, styleOpt
       result.flowchart = {
         ...(existingFlowchart2 || {}),
         curve: styleOptions.curveStyle,
-        padding: styleOptions.nodePadding,
+        padding: styleOptions.padding ?? 15,
         htmlLabels: true,
         nodeSpacing: styleOptions.nodeSpacing,
         rankSpacing: styleOptions.rankSpacing,
-        useMaxWidth: styleOptions.useMaxWidth,
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
       };
       if (styleOptions.layoutEngine && styleOptions.layoutEngine !== 'dagre') {
         result.layout = styleOptions.layoutEngine;
       }
+      // ER diagram specific
+      if (type.includes('er') || type === 'erdiagram' || type === 'erDiagram') {
+        const existingEr = existingConfig.erDiagram as Record<string, unknown> | undefined;
+        result.erDiagram = {
+          ...(existingEr || {}),
+          minEntityWidth: styleOptions.minEntityWidth ?? 100,
+          minEntityHeight: styleOptions.minEntityHeight ?? 75,
+          useMaxWidth: styleOptions.useMaxWidth ?? true,
+        };
+      }
+      break;
+    }
+
+    case 'pie': {
+      const existingPie = existingConfig.pie as Record<string, unknown> | undefined;
+      result.pie = {
+        ...(existingPie || {}),
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
+      break;
+    }
+
+    case 'timeline': {
+      const existingTimeline = existingConfig.timeline as Record<string, unknown> | undefined;
+      result.timeline = {
+        ...(existingTimeline || {}),
+        disableMulticolor: styleOptions.disableMulticolor ?? false,
+        htmlLabels: styleOptions.htmlLabels ?? false,
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
+      break;
+    }
+
+    case 'quadrantchart':
+    case 'quadrantChart': {
+      const existingQuadrant = existingConfig.quadrantChart as Record<string, unknown> | undefined;
+      result.quadrantChart = {
+        ...(existingQuadrant || {}),
+        chartWidth: styleOptions.chartWidth ?? 500,
+        chartHeight: styleOptions.chartHeight ?? 500,
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
+      break;
+    }
+
+    case 'xychart':
+    case 'xyChart': {
+      const existingXy = existingConfig.xyChart as Record<string, unknown> | undefined;
+      result.xyChart = {
+        ...(existingXy || {}),
+        showDataLabel: styleOptions.showDataLabel ?? false,
+        xAxisTitle: styleOptions.xAxisTitle ?? '',
+        yAxisTitle: styleOptions.yAxisTitle ?? '',
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
+      break;
+    }
+
+    case 'gitgraph':
+    case 'gitGraph': {
+      const existingGit = existingConfig.gitGraph as Record<string, unknown> | undefined;
+      result.gitGraph = {
+        ...(existingGit || {}),
+        useMaxWidth: styleOptions.useMaxWidth ?? true,
+      };
       break;
     }
 
@@ -749,6 +1153,7 @@ function stripYamlFrontmatter(content: string): string {
 }
 
 // Extract style options from existing YAML config
+// Extract style options from existing YAML config
 export function extractStyleOptionsFromContent(content: string): Partial<DiagramStyleOptions> {
   const existingConfig = extractExistingConfig(content);
   if (!existingConfig) return {};
@@ -775,6 +1180,7 @@ export function extractStyleOptionsFromContent(content: string): Partial<Diagram
     }
     if (typeof flowchart.padding === 'number') {
       options.nodePadding = flowchart.padding;
+      options.padding = flowchart.padding;
     }
     if (typeof flowchart.nodeSpacing === 'number') {
       options.nodeSpacing = flowchart.nodeSpacing;
@@ -811,6 +1217,18 @@ export function extractStyleOptionsFromContent(content: string): Partial<Diagram
     if (typeof sequence.mirrorActors === 'boolean') {
       options.mirrorActors = sequence.mirrorActors;
     }
+    if (typeof sequence.messageAlign === 'string') {
+      options.messageAlign = sequence.messageAlign as 'left' | 'center' | 'right';
+    }
+    if (typeof sequence.rightAngles === 'boolean') {
+      options.rightAngles = sequence.rightAngles;
+    }
+    if (typeof sequence.showSequenceNumbers === 'boolean') {
+      options.showSequenceNumbers = sequence.showSequenceNumbers;
+    }
+    if (typeof sequence.wrap === 'boolean') {
+      options.wrap = sequence.wrap;
+    }
   }
 
   // Extract from gantt config
@@ -836,6 +1254,101 @@ export function extractStyleOptionsFromContent(content: string): Partial<Diagram
     }
     if (typeof gantt.sectionMargin === 'number') {
       options.sectionMargin = gantt.sectionMargin;
+    }
+  }
+
+  // Extract from mindmap config
+  const mindmap = existingConfig.mindmap as Record<string, unknown>;
+  if (mindmap) {
+    if (typeof mindmap.maxNodeWidth === 'number') {
+      options.maxNodeWidth = mindmap.maxNodeWidth;
+    }
+    if (typeof mindmap.maxNodeHeight === 'number') {
+      options.maxNodeHeight = mindmap.maxNodeHeight;
+    }
+    if (typeof mindmap.maxTextWidth === 'number') {
+      options.maxTextWidth = mindmap.maxTextWidth;
+    }
+    if (typeof mindmap.padding === 'number') {
+      options.padding = mindmap.padding;
+    }
+    if (typeof mindmap.useMaxWidth === 'boolean') {
+      options.useMaxWidth = mindmap.useMaxWidth;
+    }
+  }
+
+  // Extract from erDiagram config
+  const erDiagram = existingConfig.erDiagram as Record<string, unknown>;
+  if (erDiagram) {
+    if (typeof erDiagram.minEntityWidth === 'number') {
+      options.minEntityWidth = erDiagram.minEntityWidth;
+    }
+    if (typeof erDiagram.minEntityHeight === 'number') {
+      options.minEntityHeight = erDiagram.minEntityHeight;
+    }
+    if (typeof erDiagram.useMaxWidth === 'boolean') {
+      options.useMaxWidth = erDiagram.useMaxWidth;
+    }
+  }
+
+  // Extract from timeline config
+  const timeline = existingConfig.timeline as Record<string, unknown>;
+  if (timeline) {
+    if (typeof timeline.disableMulticolor === 'boolean') {
+      options.disableMulticolor = timeline.disableMulticolor;
+    }
+    if (typeof timeline.htmlLabels === 'boolean') {
+      options.htmlLabels = timeline.htmlLabels;
+    }
+    if (typeof timeline.useMaxWidth === 'boolean') {
+      options.useMaxWidth = timeline.useMaxWidth;
+    }
+  }
+
+  // Extract from quadrantChart config
+  const quadrantChart = existingConfig.quadrantChart as Record<string, unknown>;
+  if (quadrantChart) {
+    if (typeof quadrantChart.chartWidth === 'number') {
+      options.chartWidth = quadrantChart.chartWidth;
+    }
+    if (typeof quadrantChart.chartHeight === 'number') {
+      options.chartHeight = quadrantChart.chartHeight;
+    }
+    if (typeof quadrantChart.useMaxWidth === 'boolean') {
+      options.useMaxWidth = quadrantChart.useMaxWidth;
+    }
+  }
+
+  // Extract from xyChart config
+  const xyChart = existingConfig.xyChart as Record<string, unknown>;
+  if (xyChart) {
+    if (typeof xyChart.showDataLabel === 'boolean') {
+      options.showDataLabel = xyChart.showDataLabel;
+    }
+    if (xyChart.xAxisTitle && typeof xyChart.xAxisTitle === 'string') {
+      options.xAxisTitle = xyChart.xAxisTitle;
+    }
+    if (xyChart.yAxisTitle && typeof xyChart.yAxisTitle === 'string') {
+      options.yAxisTitle = xyChart.yAxisTitle;
+    }
+    if (typeof xyChart.useMaxWidth === 'boolean') {
+      options.useMaxWidth = xyChart.useMaxWidth;
+    }
+  }
+
+  // Extract from gitGraph config
+  const gitGraph = existingConfig.gitGraph as Record<string, unknown>;
+  if (gitGraph) {
+    if (typeof gitGraph.useMaxWidth === 'boolean') {
+      options.useMaxWidth = gitGraph.useMaxWidth;
+    }
+  }
+
+  // Extract from pie config
+  const pie = existingConfig.pie as Record<string, unknown>;
+  if (pie) {
+    if (typeof pie.useMaxWidth === 'boolean') {
+      options.useMaxWidth = pie.useMaxWidth;
     }
   }
 

@@ -77,11 +77,11 @@ export interface GanttStyleOptions {
 
 // Combined style options for all types
 export interface DiagramStyleOptions extends BaseStyleOptions {
-  // Flowchart options (only apply to flowcharts)
+  // Flowchart options (apply to flowcharts, journey, c4, block, architecture)
   nodePadding?: number;
   nodeSpacing?: number;
   rankSpacing?: number;
-  curveStyle?: 'basis' | 'linear' | 'stepBefore' | 'stepAfter' | 'cardinal' | 'catmullRom';
+  curveStyle?: 'basis' | 'linear' | 'stepBefore' | 'stepAfter' | 'cardinal' | 'catmullRom' | 'natural';
   borderRadius?: number;
   borderWidth?: number;
   useMaxWidth?: boolean;
@@ -95,6 +95,10 @@ export interface DiagramStyleOptions extends BaseStyleOptions {
   actorHeight?: number;
   boxMargin?: number;
   mirrorActors?: boolean;
+  messageAlign?: 'left' | 'center' | 'right';
+  rightAngles?: boolean;
+  showSequenceNumbers?: boolean;
+  wrap?: boolean;
 
   // Gantt chart options
   titleTopMargin?: number;
@@ -104,6 +108,56 @@ export interface DiagramStyleOptions extends BaseStyleOptions {
   leftPadding?: number;
   axisFormat?: string;
   sectionMargin?: number;
+
+  // Mindmap options
+  maxNodeWidth?: number;
+  maxNodeHeight?: number;
+  maxTextWidth?: number;
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // State diagram options
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // Class diagram options
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // ER diagram options
+  padding?: number;
+  useMaxWidth?: boolean;
+  minEntityWidth?: number;
+  minEntityHeight?: number;
+
+  // Journey options (uses flowchart config)
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // Timeline options
+  disableMulticolor?: boolean;
+  htmlLabels?: boolean;
+
+  // Block diagram options
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // C4 context options
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // Architecture diagram options
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // Quadrant chart options (uses pie config)
+  chartWidth?: number;
+  chartHeight?: number;
+
+  // XY chart options
+  showDataLabel?: boolean;
+  xAxisTitle?: string;
+  yAxisTitle?: string;
 }
 
 export const DEFAULT_STYLE_OPTIONS: DiagramStyleOptions = {
@@ -140,7 +194,7 @@ export function getStylingCapabilities(diagramType: DiagramType): StylingCapabil
         supportsFlowchartConfig: true,
         supportsSequenceConfig: false,
         supportsGanttConfig: false,
-        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth', 'htmlLabels'],
+        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth', 'htmlLabels', 'layoutEngine'],
       };
 
     case 'stateDiagram':
@@ -149,7 +203,7 @@ export function getStylingCapabilities(diagramType: DiagramType): StylingCapabil
         supportsFlowchartConfig: true,
         supportsSequenceConfig: false,
         supportsGanttConfig: false,
-        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth'],
+        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth', 'layoutEngine'],
       };
 
     case 'classDiagram':
@@ -158,7 +212,7 @@ export function getStylingCapabilities(diagramType: DiagramType): StylingCapabil
         supportsFlowchartConfig: true,
         supportsSequenceConfig: false,
         supportsGanttConfig: false,
-        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth'],
+        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth', 'layoutEngine'],
       };
 
     case 'sequence':
@@ -167,7 +221,7 @@ export function getStylingCapabilities(diagramType: DiagramType): StylingCapabil
         supportsFlowchartConfig: false,
         supportsSequenceConfig: true,
         supportsGanttConfig: false,
-        availableConfigOptions: ['diagramMarginX', 'diagramMarginY', 'actorMargin', 'width', 'height', 'boxMargin', 'mirrorActors', 'useMaxWidth'],
+        availableConfigOptions: ['diagramMarginX', 'diagramMarginY', 'actorMargin', 'width', 'height', 'boxMargin', 'mirrorActors', 'useMaxWidth', 'messageAlign', 'rightAngles', 'showSequenceNumbers', 'wrap'],
       };
 
     case 'gantt':
@@ -176,26 +230,66 @@ export function getStylingCapabilities(diagramType: DiagramType): StylingCapabil
         supportsFlowchartConfig: false,
         supportsSequenceConfig: false,
         supportsGanttConfig: true,
-        availableConfigOptions: ['titleTopMargin', 'barHeight', 'barGap', 'topPadding', 'leftPadding', 'axisFormat', 'sectionMargin'],
+        availableConfigOptions: ['titleTopMargin', 'barHeight', 'barGap', 'topPadding', 'leftPadding', 'axisFormat', 'sectionMargin', 'useMaxWidth'],
       };
 
     case 'erDiagram':
       return {
         supportsClassDef: false,
-        supportsFlowchartConfig: true,  // Uses flowchart for layout
+        supportsFlowchartConfig: true,
         supportsSequenceConfig: false,
         supportsGanttConfig: false,
-        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth'],
+        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth', 'minEntityWidth', 'minEntityHeight', 'layoutEngine'],
       };
 
     case 'mindmap':
-    case 'gitGraph':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['maxNodeWidth', 'maxNodeHeight', 'maxTextWidth', 'padding', 'useMaxWidth', 'layoutEngine'],
+      };
+
     case 'pie':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['useMaxWidth'],
+      };
+
     case 'timeline':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['disableMulticolor', 'htmlLabels', 'useMaxWidth'],
+      };
+
     case 'quadrantChart':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['chartWidth', 'chartHeight', 'useMaxWidth'],
+      };
+
+    case 'xyChart':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['showDataLabel', 'xAxisTitle', 'yAxisTitle', 'useMaxWidth'],
+      };
+
+    case 'gitGraph':
     case 'requirementDiagram':
     case 'sankey':
-    case 'xyChart':
     case 'packetDiagram':
     case 'kanban':
     case 'zenuml':
