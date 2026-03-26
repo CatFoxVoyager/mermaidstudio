@@ -801,24 +801,10 @@ export function applyStyleToContent(content: string, styleOptions: DiagramStyleO
     // Set theme to 'base' so that themeVariables are properly applied
     minimalConfig.theme = 'base';
 
-    // Start with base theme variables to ensure consistent appearance
-    // These are Mermaid's standard themeVariables
+    // Minimal base theme variables - just primaryColor to avoid beige default
     minimalConfig.themeVariables = {
       ...(minimalConfig.themeVariables as Record<string, unknown> | {}),
-      // Common theme variables
       primaryColor: '#fff4dd',
-      primaryTextColor: '#000',
-      primaryBorderColor: '#666',
-      lineColor: '#666',
-      secondaryColor: '#fff',
-      tertiaryColor: '#fff',
-      fillType0: '#fff4dd',
-      fillType1: '#fff',
-      fillType2: '#f0f0f0',
-      // Note colors
-      noteBkgColor: '#fff5ad',
-      noteTextColor: '#333',
-      noteBorderColor: '#999',
     };
 
     // Add font settings on top of base theme
@@ -1189,26 +1175,11 @@ export function addBaseThemeConfig(content: string): string {
   const stripped = stripYamlFrontmatter(content);
   const diagramType = detectDiagramTypeFromContent(stripped);
 
-  // Base theme variables to ensure consistent appearance
-  // Using Mermaid's standard themeVariables names
+  // Minimal base theme config - just primaryColor to avoid beige default
   const baseConfig: Record<string, unknown> = {
-    // Use 'base' theme so that themeVariables are applied
     theme: 'base',
     themeVariables: {
-      // Common theme variables for most diagrams
       primaryColor: '#fff4dd',
-      primaryTextColor: '#000',
-      primaryBorderColor: '#666',
-      lineColor: '#666',
-      secondaryColor: '#fff',
-      tertiaryColor: '#fff',
-      fillType0: '#fff4dd',
-      fillType1: '#fff',
-      fillType2: '#f0f0f0',
-      // Note colors
-      noteBkgColor: '#fff5ad',
-      noteTextColor: '#333',
-      noteBorderColor: '#999',
     },
   };
 
