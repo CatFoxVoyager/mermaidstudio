@@ -126,9 +126,8 @@ describe('NodeStylePanel Component', () => {
           nodeLabels={new Map([['A', 'Node A'], ['B', 'Node B']])}
         />
       );
-      // The Fill Color picker should show 'Mixed' label
-      const fillLabel = screen.getByTestId('color-picker-fill-color');
-      expect(fillLabel).toBeInTheDocument();
+      // The Fill Color picker label should include "(Mixed)"
+      expect(screen.getByText(/Fill Color \(Mixed\)/)).toBeInTheDocument();
     });
   });
 
