@@ -637,7 +637,9 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
 
             {selectedNodeId && selectedNodeStyle && onChange && (
               <div className="absolute top-2 left-2 z-20 w-64 rounded-xl border shadow-lg p-3 animate-fade-in"
-                style={{ background: 'var(--surface-floating)', borderColor: 'var(--border-subtle)' }}>
+                style={{ background: 'var(--surface-floating)', borderColor: 'var(--border-subtle)' }}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-3 pb-2 border-b"
                   style={{ borderColor: 'var(--border-subtle)' }}>
                   <div className="flex items-center gap-2">
@@ -706,6 +708,8 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
                   maxHeight: '400px',
                   overflowY: 'auto'
                 }}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
               >
                 <div className="sticky top-0 p-2 border-b flex items-center justify-end" style={{ borderColor: 'var(--border-subtle)', background: 'var(--surface-base)' }}>
                   <button
