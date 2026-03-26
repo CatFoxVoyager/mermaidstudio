@@ -24,6 +24,8 @@ import {
   removeLinkStyles,
   updateEdgeArrowType,
   updateEdgeLabel,
+  addSubgraph,
+  updateSubgraphLabel,
 } from '../codeUtils';
 
 describe('Mermaid Code Utilities', () => {
@@ -54,6 +56,28 @@ describe('Mermaid Code Utilities', () => {
 
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].label).toBe('yes');
+    });
+
+    it('should extract labels from nodes defined on edge lines', () => {
+      const source = `flowchart TD
+A([Start]) --> B{Is it working?}
+B -->|Yes| C[Great!]
+B -->|No| D[Debug it]
+D --> B
+C --> E([End])`;
+      const result = parseDiagram(source);
+
+      const byId = (id: string) => result.nodes.find(n => n.id === id)!;
+      expect(byId('A').label).toBe('Start');
+      expect(byId('A').shape).toBe('stadium');
+      expect(byId('B').label).toBe('Is it working?');
+      expect(byId('B').shape).toBe('rhombus');
+      expect(byId('C').label).toBe('Great!');
+      expect(byId('C').shape).toBe('rect');
+      expect(byId('D').label).toBe('Debug it');
+      expect(byId('D').shape).toBe('rect');
+      expect(byId('E').label).toBe('End');
+      expect(byId('E').shape).toBe('stadium');
     });
 
     it('should parse subgraphs', () => {
@@ -827,5 +851,93 @@ describe('Edge Style Utilities', () => {
         opacity: '0.7',
       });
     });
+  });
+});
+
+describe('addSubgraph', () => {
+  it('should insert subgraph before trailing meta lines', () => {
+    const source = 'flowchart TD\nA-->B\nstyle A fill:red';
+    const result = addSubgraph(source);
+
+    expect(result).toContain('subgraph subgraph1');
+    expect(result).toContain('New Subgraph');
+    expect(result).toContain('style A fill:red');
+    const subgraphIdx = result.indexOf('subgraph subgraph1');
+    const styleIdx = result.indexOf('style A fill:red');
+    expect(subgraphIdx).toBeLessThan(styleIdx);
+  });
+
+  it('should generate unique sequential IDs', () => {
+    const source = 'flowchart TD\nA-->B\nsubgraph subgraph1\n  C\nend\nsubgraph subgraph2\n  D\nend';
+    const result = addSubgraph(source);
+
+    expect(result).toContain('subgraph subgraph3');
+  });
+
+  it('should use default label "New Subgraph"', () => {
+    const source = 'flowchart TD\nA-->B';
+    const result = addSubgraph(source);
+
+    expect(result).toContain('New Subgraph');
+  });
+
+  it('should preserve existing content', () => {
+    const source = 'flowchart TD\nA-->B\nB-->C';
+    const result = addSubgraph(source);
+
+    expect(result).toContain('flowchart TD');
+    expect(result).toContain('A-->B');
+    expect(result).toContain('B-->C');
+  });
+
+  it('should append after existing subgraphs', () => {
+    const source = 'flowchart TD\nsubgraph S1\n  A\nend';
+    const result = addSubgraph(source);
+
+    const s1Idx = result.indexOf('subgraph S1');
+    const newIdx = result.indexOf('subgraph subgraph1');
+    expect(newIdx).toBeGreaterThan(s1Idx);
+  });
+
+  it('should handle minimal source', () => {
+    const source = 'flowchart TD';
+    const result = addSubgraph(source);
+
+    expect(result).toContain('subgraph subgraph1');
+    expect(result).toContain('New Subgraph');
+    expect(result).toContain('end');
+  });
+
+  it('should use custom id and label when provided', () => {
+    const source = 'flowchart TD\nA-->B';
+    const result = addSubgraph(source, 'myGroup', 'My Group');
+
+    expect(result).toContain('subgraph myGroup');
+    expect(result).toContain('My Group');
+  });
+});
+
+describe('updateSubgraphLabel', () => {
+  it('should change label in multi-line format', () => {
+    const source = 'flowchart TD\nsubgraph S1\n  Old Label\n  A-->B\nend';
+    const result = updateSubgraphLabel(source, 'S1', 'New Label');
+
+    expect(result).toContain('New Label');
+    expect(result).not.toContain('Old Label');
+  });
+
+  it('should change label in inline format', () => {
+    const source = 'flowchart TD\nsubgraph S1 Old Label\n  A-->B\nend';
+    const result = updateSubgraphLabel(source, 'S1', 'New Label');
+
+    expect(result).toContain('subgraph S1 New Label');
+    expect(result).not.toContain('Old Label');
+  });
+
+  it('should return unchanged source when subgraph not found', () => {
+    const source = 'flowchart TD\nA-->B';
+    const result = updateSubgraphLabel(source, 'nonexistent', 'Label');
+
+    expect(result).toBe(source);
   });
 });

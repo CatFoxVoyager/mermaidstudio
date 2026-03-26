@@ -91,6 +91,7 @@ function shapeWrap(label: string, shape: NodeShape): string {
 }
 
 const STANDALONE_NODE_RE = /^(\s*)([A-Za-z_][A-Za-z0-9_-]*)(\s*)$/;
+const ARROW_RE = /-->|---|-.->|-\.->|==>|x--x|\.->|<-->|o--o|--o|o--|--\|>|\|>|~~~/;
 
 export function parseStyleValue(val: string): NodeStyle {
   const style: NodeStyle = {};
@@ -217,49 +218,51 @@ export function removeLinkStyles(source: string, indices: number[]): string {
   return result.trimEnd();
 }
 
+/** Split an edge line into: [beforeArrow, arrowType, edgeLabel, afterArrow] */
+function splitEdgeLine(line: string): [string, string, string, string] | null {
+  const arrowMatch = line.match(/(-->|---|-.->|-\.->|==>|x--x|\.->|<-->|o--o|--o|o--|--\|>|\|>|~~~)/);
+  if (!arrowMatch) return null;
+  const beforeArrow = line.substring(0, arrowMatch.index);
+  const arrow = arrowMatch[0];
+  const rest = line.substring(arrowMatch.index + arrow.length);
+  // Extract edge label if present: |label|
+  const labelMatch = rest.match(/^\|([^|]*)\|\s*(.*)/);
+  if (labelMatch) {
+    return [beforeArrow, arrow, labelMatch[1], labelMatch[2]];
+  }
+  return [beforeArrow, arrow, '', rest];
+}
+
 export function updateEdgeArrowType(source: string, srcId: string, tgtId: string, newType: string): string {
   const lines = source.split('\n');
-  const arrowPattern = new RegExp(
-    `(${escapeRegex(srcId)})\\s*(\\[[^\\]]*\\])?\\s*(-->|---|-\\.->|==>|\\.->|<-->|o--o|--o|o--|x--x|--\\|>|\\|>|~~~)\\|?([^|]*)?\\|?\\s*(${escapeRegex(tgtId)})`
-  );
-
   for (let i = 0; i < lines.length; i++) {
-    const match = lines[i].match(arrowPattern);
-    if (match) {
-      const label = match[4]?.trim() ?? '';
-      const srcLabel = match[2] ?? '';
-      if (label) {
-        lines[i] = lines[i].replace(arrowPattern, `${match[1]}${srcLabel} ${newType}|${label}| ${match[5]}`);
-      } else {
-        lines[i] = lines[i].replace(arrowPattern, `${match[1]}${srcLabel} ${newType} ${match[5]}`);
-      }
-      return lines.join('\n');
-    }
+    const trimmed = lines[i].trim();
+    if (!trimmed.startsWith(srcId)) continue;
+    const parts = splitEdgeLine(trimmed);
+    if (!parts) continue;
+    const [, , label, after] = parts;
+    // Verify target ID appears after the arrow+label
+    const tgtRe = new RegExp(`\\b${escapeRegex(tgtId)}\\b`);
+    if (!tgtRe.test(after)) continue;
+    lines[i] = lines[i].replace(trimmed, `${parts[0].trimEnd()} ${newType}${label ? `|${label}|` : ''} ${after.trimStart()}`);
+    return lines.join('\n');
   }
-
   return source;
 }
 
 export function updateEdgeLabel(source: string, srcId: string, tgtId: string, newLabel: string): string {
   const lines = source.split('\n');
-  const arrowPattern = new RegExp(
-    `(${escapeRegex(srcId)})\\s*(\\[[^\\]]*\\])?\\s*(-->|---|-\\.->|==>|\\.->|<-->|o--o|--o|o--|x--x|--\\|>|\\|>|~~~)\\|?([^|]*)?\\|?\\s*(${escapeRegex(tgtId)})`
-  );
-
   for (let i = 0; i < lines.length; i++) {
-    const match = lines[i].match(arrowPattern);
-    if (match) {
-      const arrowType = match[3];
-      const srcLabel = match[2] ?? '';
-      if (newLabel) {
-        lines[i] = lines[i].replace(arrowPattern, `${match[1]}${srcLabel} ${arrowType}|${newLabel}| ${match[5]}`);
-      } else {
-        lines[i] = lines[i].replace(arrowPattern, `${match[1]}${srcLabel} ${arrowType} ${match[5]}`);
-      }
-      return lines.join('\n');
-    }
+    const trimmed = lines[i].trim();
+    if (!trimmed.startsWith(srcId)) continue;
+    const parts = splitEdgeLine(trimmed);
+    if (!parts) continue;
+    const [before, arrow, , after] = parts;
+    const tgtRe = new RegExp(`\\b${escapeRegex(tgtId)}\\b`);
+    if (!tgtRe.test(after)) continue;
+    lines[i] = lines[i].replace(trimmed, `${before.trimEnd()} ${arrow}${newLabel ? `|${newLabel}|` : ''} ${after.trimStart()}`);
+    return lines.join('\n');
   }
-
   return source;
 }
 
@@ -325,20 +328,40 @@ export function parseDiagram(source: string): ParsedDiagram {
     const linkStyleMatch = trimmed.match(/^linkStyle\s+(\d+)\s+(.+)$/);
     if (linkStyleMatch) {continue;}
 
-    const edgeMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*(?:\[([^\]]*)\])?\s*(-->|---|-.->|-\.->|==>|x--x|\.->|<-->|o--o|--o|o--|--\|>|\|>|~~~)[^\n]*/);
-    if (edgeMatch) {
-      const sourceId = edgeMatch[1];
-      if (!seenIds.has(sourceId)) {
-        seenIds.add(sourceId);
-        nodes.push({ id: sourceId, label: sourceId, shape: 'rect', raw: sourceId });
-      }
-
-      const arrowMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_-]*)((?:\[[^\]]*\])?)\s*(-->|---|-.->|-\.->|==>|x--x|\.->|<-->|o--o|--o|o--|--\|>|\|>|~~~)\|?([^|]*)?\|?\s*([A-Za-z_][A-Za-z0-9_-]*)((?:\[[^\]]*\]|(?:\(\[|\[\[|\[\(|\(\(|\{\{|\{|\(|>)[^\n]*)?)/);
+    if (ARROW_RE.test(trimmed)) {
+      const arrowMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_-]*)([^\n]*?)\s*(-->|---|-.->|-\.->|==>|x--x|\.->|<-->|o--o|--o|o--|--\|>|\|>|~~~)\s*(?:\|([^|]*)\|)?\s*([A-Za-z_][A-Za-z0-9_-]*)([^\n]*)$/);
       if (arrowMatch) {
+        const sourceId = arrowMatch[1];
+        const sourceShapeRaw = arrowMatch[2]?.trim();
         const targetId = arrowMatch[5];
+        const targetShapeRaw = arrowMatch[6]?.trim();
+
+        // Ensure source node exists
+        if (!seenIds.has(sourceId)) {
+          seenIds.add(sourceId);
+          if (sourceShapeRaw) {
+            const { label: srcLabel, shape: srcShape } = parseNodeLabel(sourceShapeRaw);
+            nodes.push({ id: sourceId, label: srcLabel, shape: srcShape, raw: sourceShapeRaw });
+          } else {
+            nodes.push({ id: sourceId, label: sourceId, shape: 'rect', raw: sourceId });
+          }
+        }
+        // Parse target label from shape (e.g. B{Is it working?})
         if (!seenIds.has(targetId)) {
           seenIds.add(targetId);
-          nodes.push({ id: targetId, label: targetId, shape: 'rect', raw: targetId });
+          if (targetShapeRaw) {
+            const { label: tgtLabel, shape: tgtShape } = parseNodeLabel(targetShapeRaw);
+            nodes.push({ id: targetId, label: tgtLabel, shape: tgtShape, raw: targetShapeRaw });
+          } else {
+            nodes.push({ id: targetId, label: targetId, shape: 'rect', raw: targetId });
+          }
+        } else if (targetShapeRaw) {
+          const existing = nodes.find(n => n.id === targetId);
+          if (existing && existing.label === existing.id) {
+            const { label: tgtLabel, shape: tgtShape } = parseNodeLabel(targetShapeRaw);
+            existing.label = tgtLabel;
+            existing.shape = tgtShape;
+          }
         }
         edges.push({ source: sourceId, target: targetId, arrowType: arrowMatch[3], label: arrowMatch[4]?.trim() ?? '', raw: trimmed });
       }
@@ -346,7 +369,7 @@ export function parseDiagram(source: string): ParsedDiagram {
     }
 
     const nodeMatch = line.match(/^(\s*)([A-Za-z_][A-Za-z0-9_-]*)(\s*)((?:\(\[|\[\[|\[\(|\(\(|\{\{|\{|\(|\[\/|\[\\|>|\[)[^\n]+)/);
-    if (nodeMatch) {
+    if (nodeMatch && !ARROW_RE.test(trimmed)) {
       const id = nodeMatch[2];
       const rest = nodeMatch[4].trim();
       const { label, shape } = parseNodeLabel(rest);
@@ -396,11 +419,34 @@ export function updateNodeLabel(source: string, nodeId: string, newLabel: string
   const lines = source.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    // First try: standalone node definition (nodeId at start of line)
     const nodeMatch = line.match(/^(\s*)([A-Za-z_][A-Za-z0-9_-]*)(\s*)((?:\(\[|\[\[|\[\(|\(\(|\{\{|\{|\(|\[\/|\[\\|>|\[)[^\n]+)/);
     if (nodeMatch && nodeMatch[2] === nodeId) {
       const { shape } = parseNodeLabel(nodeMatch[4].trim());
       lines[i] = `${nodeMatch[1]}${nodeId}${nodeMatch[3]}${shapeWrap(newLabel, shape)}`;
       return lines.join('\n');
+    }
+    // Second try: node defined on an edge line (e.g. A([Start]) --> B{Label})
+    if (ARROW_RE.test(line)) {
+      const arrowMatch = line.match(/^([A-Za-z_][A-Za-z0-9_-]*)([^\n]*?)\s*(-->|---|-.->|-\.->|==>|x--x|\.->|<-->|o--o|--o|o--|--\|>|\|>|~~~)\s*(?:\|([^|]*)\|)?\s*([A-Za-z_][A-Za-z0-9_-]*)([^\n]*)$/);
+      if (arrowMatch) {
+        // Check source
+        if (arrowMatch[1] === nodeId && arrowMatch[2]?.trim()) {
+          const { shape } = parseNodeLabel(arrowMatch[2].trim());
+          lines[i] = `${nodeId}${shapeWrap(newLabel, shape)}${arrowMatch[3]}${arrowMatch[4] !== undefined ? `|${arrowMatch[4]}|` : ''} ${arrowMatch[5]}${arrowMatch[6] ?? ''}`;
+          return lines.join('\n');
+        }
+        // Check target
+        if (arrowMatch[5] === nodeId && arrowMatch[6]?.trim()) {
+          const { shape } = parseNodeLabel(arrowMatch[6].trim());
+          // Compute position before target using match groups
+          const fullMatchEnd = arrowMatch.index + arrowMatch[0].length;
+          const targetLen = arrowMatch[5].length + (arrowMatch[6]?.length ?? 0);
+          const beforeTarget = line.substring(0, fullMatchEnd - targetLen);
+          lines[i] = `${beforeTarget}${nodeId}${shapeWrap(newLabel, shape)}`;
+          return lines.join('\n');
+        }
+      }
     }
   }
   return source;
@@ -539,6 +585,74 @@ export function generateNodeId(existingIds: string[]): string {
   let i = 1;
   while (set.has(`node${i}`)) {i++;}
   return `node${i}`;
+}
+
+function generateSubgraphId(source: string): string {
+  const existingIds = new Set<string>();
+  const re = /^\s*subgraph\s+(\S+)/gm;
+  let m;
+  while ((m = re.exec(source)) !== null) {
+    existingIds.add(m[1]);
+  }
+  let i = 1;
+  while (existingIds.has(`subgraph${i}`)) { i++; }
+  return `subgraph${i}`;
+}
+
+function isMetaLine(trimmed: string): boolean {
+  return (
+    trimmed.startsWith('style ') ||
+    trimmed.startsWith('classDef ') ||
+    trimmed.startsWith('class ') ||
+    trimmed.startsWith('linkStyle ')
+  );
+}
+
+export function addSubgraph(source: string, id?: string, label?: string): string {
+  const subgraphId = id ?? generateSubgraphId(source);
+  const subgraphLabel = label ?? 'New Subgraph';
+  const lines = source.split('\n');
+
+  let insertIdx = lines.length;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (isMetaLine(lines[i].trim())) {
+      insertIdx = i;
+    } else if (lines[i].trim() === 'end' || lines[i].trim() === '') {
+      // Skip trailing blank lines and end keywords
+    } else {
+      break;
+    }
+  }
+
+  const prefix = insertIdx > 0 && lines[insertIdx - 1].trim() !== '' ? '\n' : '';
+  const block = `${prefix}  subgraph ${subgraphId}\n    ${subgraphLabel}\n  end`;
+
+  lines.splice(insertIdx, 0, block);
+  return lines.join('\n');
+}
+
+export function updateSubgraphLabel(source: string, subgraphId: string, newLabel: string): string {
+  const lines = source.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].trim().match(new RegExp(`^subgraph\\s+${escapeRegex(subgraphId)}(?:\\s+(.+))?$`));
+    if (match) {
+      if (match[1] !== undefined) {
+        lines[i] = lines[i].replace(match[0], `subgraph ${subgraphId} ${newLabel}`);
+        return lines.join('\n');
+      }
+      for (let j = i + 1; j < lines.length; j++) {
+        const nextTrimmed = lines[j].trim();
+        if (nextTrimmed === '' || nextTrimmed === 'end' || nextTrimmed.startsWith('subgraph') || nextTrimmed.startsWith('direction')) {
+          continue;
+        }
+        const indent = lines[j].match(/^(\s*)/)?.[1] ?? '    ';
+        lines[j] = `${indent}${newLabel}`;
+        return lines.join('\n');
+      }
+      break;
+    }
+  }
+  return source;
 }
 
 export interface FrontmatterConfig {

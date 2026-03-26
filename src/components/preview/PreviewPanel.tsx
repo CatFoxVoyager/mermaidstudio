@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { ZoomIn, ZoomOut, Maximize2, RefreshCw, AlertTriangle, Copy, Check, Download, Move } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, RefreshCw, AlertTriangle, Copy, Check, Download, Move, Group } from 'lucide-react';
 import { renderDiagram, detectDiagramType } from '@/lib/mermaid/core';
 import { sanitizeSVG } from '@/utils/sanitization';
-import { parseDiagram, getNodeStyle, removeNodeStyles, parseFrontmatter, updateLinkStyle, removeLinkStyles, updateEdgeArrowType, updateEdgeLabel, parseLinkStyles, edgeStyleToString, addNode, addEdge, generateNodeId, removeNode } from '@/lib/mermaid/codeUtils';
+import { parseDiagram, getNodeStyle, removeNodeStyles, parseFrontmatter, updateLinkStyle, removeLinkStyles, updateEdgeArrowType, updateEdgeLabel, parseLinkStyles, edgeStyleToString, addNode, addEdge, generateNodeId, removeNode, updateNodeLabel, updateSubgraphLabel, addSubgraph } from '@/lib/mermaid/codeUtils';
 import type { NodeStyle, EdgeStyle, ParsedEdge, NodeShape } from '@/lib/mermaid/codeUtils';
 import { NodeStylePanel } from './NodeStylePanel';
 import { EdgeStylePanel } from './EdgeStylePanel';
@@ -17,6 +17,15 @@ const TYPE_LABELS: Record<string, string> = {
 
 interface NodeOverlay {
   id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface SubgraphOverlay {
+  id: string;
+  label: string;
   x: number;
   y: number;
   width: number;
@@ -52,6 +61,53 @@ function extractSvgNodes(outerContainer: HTMLDivElement, shadowHost: HTMLDivElem
         width: rect.width,
         height: rect.height,
       });
+    } catch {
+      // skip
+    }
+  });
+
+  return overlays;
+}
+
+function extractSubgraphOverlays(outerContainer: HTMLDivElement, shadowHost: HTMLDivElement): SubgraphOverlay[] {
+  const shadowRoot = shadowHost.shadowRoot;
+  if (!shadowRoot) return [];
+
+  const svg = shadowRoot.querySelector('svg');
+  if (!svg) return [];
+
+  const clusterElements = svg.querySelectorAll('g.cluster');
+  const overlays: SubgraphOverlay[] = [];
+
+  clusterElements.forEach(el => {
+    const idAttr = el.id ?? '';
+    const match = idAttr.match(/flowchart-([^-]+)-\d+/);
+    const subgraphId = match ? match[1] : null;
+    if (!subgraphId) return;
+
+    const labelRect = el.querySelector('.cluster-label rect');
+    const labelText = el.querySelector('.cluster-label text, .nodeLabel text');
+    const label = labelText?.textContent ?? subgraphId;
+
+    try {
+      const containerRect = outerContainer.getBoundingClientRect();
+      let x: number, y: number, width: number, height: number;
+
+      if (labelRect) {
+        const rect = labelRect.getBoundingClientRect();
+        x = rect.left - containerRect.left;
+        y = rect.top - containerRect.top;
+        width = rect.width;
+        height = rect.height;
+      } else {
+        const rect = el.getBoundingClientRect();
+        x = rect.left - containerRect.left;
+        y = rect.top - containerRect.top;
+        width = Math.min(rect.width, 200);
+        height = 24;
+      }
+
+      overlays.push({ id: subgraphId, label, x, y, width, height });
     } catch {
       // skip
     }
@@ -173,6 +229,10 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
   const skipResyncRef = useRef(false);
   const edgeCleanupRef = useRef<(() => void) | null>(null);
   const relativeContainerRef = useRef<HTMLDivElement>(null);
+  const [subgraphOverlays, setSubgraphOverlays] = useState<SubgraphOverlay[]>([]);
+  const [editingSubgraphId, setEditingSubgraphId] = useState<string | null>(null);
+  const [subgraphLabelValue, setSubgraphLabelValue] = useState('');
+  const subgraphEditRef = useRef<HTMLInputElement>(null);
   const toolModeRef = useRef(toolMode);
   toolModeRef.current = toolMode;
 
@@ -342,6 +402,8 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
     const timer = setTimeout(() => {
       const nodes = extractSvgNodes(containerRef.current!, shadowHostRef.current!);
       setNodeOverlays(nodes);
+      const subgraphs = extractSubgraphOverlays(containerRef.current!, shadowHostRef.current!);
+      setSubgraphOverlays(subgraphs);
     }, 100);
     return () => clearTimeout(timer);
   }, [svg, zoom]);
@@ -413,6 +475,36 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
       onNodeSelect?.(nodeId);
     }
   }, [supportsClassDef, onNodeSelect, toolMode, connectFirst, onChange, content]);
+
+  const handleAddSubgraph = useCallback(() => {
+    if (!onChange) return;
+    onChange(addSubgraph(content));
+  }, [onChange, content]);
+
+  const startSubgraphEdit = useCallback((e: React.MouseEvent, subgraphId: string, currentLabel: string) => {
+    e.stopPropagation();
+    if (!supportsClassDef) return;
+    setEditingSubgraphId(subgraphId);
+    setSubgraphLabelValue(currentLabel);
+    setSelectedNodeIds(new Set());
+    setSelectedEdgeIndex(null);
+  }, [supportsClassDef]);
+
+  const applySubgraphEdit = useCallback(() => {
+    if (!editingSubgraphId || !onChange) return;
+    const label = subgraphLabelValue.trim();
+    if (label) {
+      const newContent = updateSubgraphLabel(content, editingSubgraphId, label);
+      if (newContent !== content) {
+        onChange(newContent);
+      }
+    }
+    setEditingSubgraphId(null);
+  }, [editingSubgraphId, subgraphLabelValue, content, onChange]);
+
+  const cancelSubgraphEdit = useCallback(() => {
+    setEditingSubgraphId(null);
+  }, []);
 
   const handleCanvasClick = useCallback(() => {
     if (toolMode === 'connect') {
@@ -623,6 +715,16 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
               <Maximize2 size={13} />
             </button>
           )}
+          {onChange && supportsClassDef && (
+            <button
+              data-testid="add-subgraph-button"
+              onClick={handleAddSubgraph}
+              title="Add subgraph"
+              className="flex items-center gap-1 px-1.5 py-1 rounded-sm transition-colors hover:bg-white/8"
+              style={{ color: 'var(--text-tertiary)' }}>
+              <Group size={13} />
+            </button>
+          )}
           <div className="w-px h-4 mx-1" style={{ background: 'var(--border-subtle)' }} />
           <button onClick={copySvg} title="Copy SVG"
             className="p-1 rounded-sm transition-colors hover:bg-white/8" style={{ color: 'var(--text-tertiary)' }}>
@@ -693,6 +795,9 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
                 nodeLabels={panelLabels}
                 onClose={() => setSelectedNodeIds(new Set())}
                 onStyleChange={handleStyleChange}
+                onLabelChange={(nodeId, newLabel) => {
+                  if (onChange) onChange(updateNodeLabel(content, nodeId, newLabel));
+                }}
                 onReset={handleResetStyles}
               />
             )}
@@ -733,6 +838,56 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
                   }}
                   title={supportsClassDef ? `Click to edit ${overlay.id}` : overlay.id}
                 />
+              );
+            })}
+
+            {subgraphOverlays.map(sg => {
+              const isEditing = editingSubgraphId === sg.id;
+              return (
+                <div
+                  key={`sg-${sg.id}`}
+                  onClick={e => startSubgraphEdit(e, sg.id, sg.label)}
+                  className="subgraph-overlay"
+                  style={{
+                    position: 'absolute',
+                    left: sg.x,
+                    top: sg.y,
+                    width: sg.width,
+                    height: sg.height,
+                    cursor: supportsClassDef ? 'pointer' : 'default',
+                    zIndex: 6,
+                    border: isEditing ? '2px solid var(--accent)' : '2px solid transparent',
+                    borderRadius: '4px',
+                    transition: 'border-color 0.15s',
+                  }}
+                  title={supportsClassDef ? 'Click to edit subgraph label' : sg.label}
+                >
+                  {isEditing && (
+                    <input
+                      ref={subgraphEditRef}
+                      value={subgraphLabelValue}
+                      onChange={e => setSubgraphLabelValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') applySubgraphEdit();
+                        if (e.key === 'Escape') cancelSubgraphEdit();
+                      }}
+                      onBlur={applySubgraphEdit}
+                      className="absolute z-10 text-center outline-none"
+                      style={{
+                        left: 0, top: 0,
+                        width: '100%', height: '100%',
+                        background: 'var(--surface-base)',
+                        border: '2px solid var(--accent)',
+                        borderRadius: '4px',
+                        color: 'var(--text-primary)',
+                        fontSize: '12px',
+                        padding: '0 4px',
+                        boxSizing: 'border-box',
+                      }}
+                      autoFocus
+                    />
+                  )}
+                </div>
               );
             })}
           </div>
