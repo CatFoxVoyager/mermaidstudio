@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import { HexColorPicker } from 'react-colorful';
 import { ZoomIn, ZoomOut, Maximize2, RefreshCw, AlertTriangle, Copy, Check, Download, Move, X, Hash } from 'lucide-react';
 import { renderDiagram, detectDiagramType } from '@/lib/mermaid/core';
 import { sanitizeSVG } from '@/utils/sanitization';
@@ -25,6 +26,7 @@ interface NodeColorStyle {
   id: string;
   label: string;
   color: string;
+  isCustom?: boolean;
 }
 
 const PREDEFINED_COLORS = [
@@ -148,6 +150,8 @@ function applyNodeStyles(content: string, nodeStyles: NodeColorStyle[]): string 
   const isUnsupported = unsupportedTypes.some(regex => regex.test(bodyContent));
   if (isUnsupported) return content;
 
+  const customNodeIds = new Set(nodeStyles.map(ns => ns.id));
+
   function getContrastColor(hexColor: string): string {
     const r = parseInt(hexColor.substr(1, 2), 16);
     const g = parseInt(hexColor.substr(3, 2), 16);
@@ -156,27 +160,54 @@ function applyNodeStyles(content: string, nodeStyles: NodeColorStyle[]): string 
     return luminance > 0.5 ? '#000000' : '#ffffff';
   }
 
-  const classDefs: string[] = [];
-  const classAssignments: string[] = [];
+  // Process content line by line
+  const lines = content.split('\n');
+  const processedLines = lines.map(line => {
+    const trimmed = line.trim();
 
-  nodeStyles.forEach((nodeStyle, index) => {
-    const className = `customNode_${index}`;
-    const textColor = getContrastColor(nodeStyle.color);
-    classDefs.push(`    classDef ${className} fill:${nodeStyle.color},stroke:#333,stroke-width:1px,color:${textColor}`);
-    classAssignments.push(`    class ${nodeStyle.id} ${className}`);
+    // Remove old userColor classDefs (our own, not the palette's)
+    if (/^classDef\s+userColor_\d+\s+/i.test(trimmed)) {
+      return null;
+    }
+
+    // Handle class assignment lines (e.g., "class A,B,C someStyle")
+    const classMatch = trimmed.match(/^class\s+(.+?)\s+(\S+)$/);
+    if (classMatch) {
+      const nodeIds = classMatch[1].split(',').map(id => id.trim());
+      const styleName = classMatch[2];
+
+      // Check if any of the nodes in this line are being customized
+      const hasCustomNode = nodeIds.some(id => customNodeIds.has(id));
+
+      if (hasCustomNode) {
+        // Remove customized nodes from this line
+        const remainingNodes = nodeIds.filter(id => !customNodeIds.has(id));
+
+        if (remainingNodes.length === 0) {
+          // All nodes in this line are customized, remove the line
+          return null;
+        } else {
+          // Keep only the non-customized nodes
+          return `    class ${remainingNodes.join(',')} ${styleName}`;
+        }
+      }
+    }
+
+    return line;
   });
 
-  const styleSection = '\n' + classDefs.join('\n') + '\n' + classAssignments.join('\n');
+  // Build new classDefs and class assignments for custom nodes
+  const newLines: string[] = [];
+  nodeStyles.forEach((nodeStyle, index) => {
+    const className = `userColor_${index}`;
+    const textColor = getContrastColor(nodeStyle.color);
+    newLines.push(`    classDef ${className} fill:${nodeStyle.color},stroke:#333,stroke-width:1px,color:${textColor}`);
+    newLines.push(`    class ${nodeStyle.id} ${className}`);
+  });
 
-  let cleaned = content.replace(/^[ \t]*classDef\s+\w+\s+[^\n]*$/gm, '');
-  cleaned = cleaned.replace(/^[ \t]*class\s+[^\n]*$/gm, '');
-  cleaned = cleaned.replace(/\n\s*\n\s*\n/g, '\n\n');
-
-  if (/^\s*---[\s\S]*?---\s*/i.test(cleaned)) {
-    cleaned = cleaned.replace(/^\s*---[\s\S]*?---\s*/i, '');
-  }
-
-  return cleaned.trim() + styleSection;
+  // Combine: keep processed lines + add new custom lines
+  const result = [...processedLines.filter(l => l !== null), ...newLines];
+  return result.join('\n');
 }
 
 function extractSvgNodes(outerContainer: HTMLDivElement, shadowHost: HTMLDivElement): NodeOverlay[] {
@@ -223,9 +254,10 @@ interface Props {
   onExport?: () => void;
   onRenderTime?: (ms: number) => void;
   onFullscreen?: () => void;
+  onNodeSelect?: (nodeId: string) => void;
 }
 
-export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime, onFullscreen }: Props) {
+export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime, onFullscreen, onNodeSelect }: Props) {
   const [svg, setSvg] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -235,6 +267,8 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showNodeColorsPanel, setShowNodeColorsPanel] = useState(false);
   const [nodeColorStyles, setNodeColorStyles] = useState<NodeColorStyle[]>([]);
+  const [nodeColorDropdownOpen, setNodeColorDropdownOpen] = useState(false);
+  const [nodeColorHex, setNodeColorHex] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const shadowHostRef = useRef<HTMLDivElement>(null);
   const svgContainerRef = useRef<HTMLDivElement>(null);
@@ -242,11 +276,51 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
   const zoomRef = useRef(1);
   const renderIdRef = useRef(0);
   const debounceRef = useRef<number>(0);
+  const nodeColorDropdownContainerRef = useRef<HTMLDivElement>(null);
+  const colorChangeTimeoutRef = useRef<number | null>(null);
+  const isDraggingColorRef = useRef(false);
 
   // Keep zoomRef in sync with zoom state
   useEffect(() => {
     zoomRef.current = zoom;
   }, [zoom]);
+
+  // Sync node color hex with selected node color
+  useEffect(() => {
+    const selectedNodeStyle = selectedNodeId
+      ? nodeColorStyles.find(n => n.id === selectedNodeId) ?? null
+      : null;
+    const color = selectedNodeStyle?.color ?? '';
+    if (color && color !== 'none' && color !== 'transparent') {
+      setNodeColorHex(color);
+    } else {
+      setNodeColorHex('');
+    }
+  }, [selectedNodeId, nodeColorStyles]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!nodeColorDropdownOpen) return;
+
+    function handleMouseDown(e: MouseEvent) {
+      if (!nodeColorDropdownContainerRef.current) return;
+      if (!nodeColorDropdownContainerRef.current.contains(e.target as Node)) {
+        setNodeColorDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [nodeColorDropdownOpen]);
+
+  // Cleanup color change timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (colorChangeTimeoutRef.current) {
+        clearTimeout(colorChangeTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const render = useCallback(async () => {
     const id = ++renderIdRef.current;
@@ -412,7 +486,8 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
       const updatedNodes = nodes.map(node => ({
         id: node.id,
         label: node.label,
-        color: colorMap.get(node.id) || defaultColor
+        color: colorMap.get(node.id) || defaultColor,
+        isCustom: false
       }));
       setNodeColorStyles(updatedNodes);
     } else {
@@ -424,7 +499,10 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
   const handleNodeClick = useCallback((e: React.MouseEvent, nodeId: string) => {
     e.stopPropagation();
     setSelectedNodeId(nodeId === selectedNodeId ? null : nodeId);
-  }, [selectedNodeId]);
+    if (nodeId !== selectedNodeId) {
+      onNodeSelect?.(nodeId);
+    }
+  }, [selectedNodeId, onNodeSelect]);
 
   const handleCanvasClick = useCallback(() => {
     setSelectedNodeId(null);
@@ -434,12 +512,12 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
   const handleNodeColorChange = useCallback((nodeId: string, color: string) => {
     if (!onChange) return;
 
-    const updatedStyles = nodeColorStyles.map(ns => ns.id === nodeId ? { ...ns, color } : ns);
+    const updatedStyles = nodeColorStyles.map(ns => ns.id === nodeId ? { ...ns, color, isCustom: true } : ns);
     setNodeColorStyles(updatedStyles);
 
-    // Apply to diagram
-    const cleanContent = stripThemeDirective(content);
-    const contentWithNodeColors = applyNodeStyles(cleanContent, updatedStyles);
+    // Apply to diagram - only apply custom styles
+    const customStyles = updatedStyles.filter(ns => ns.isCustom);
+    const contentWithNodeColors = applyNodeStyles(content, customStyles);
     onChange(contentWithNodeColors);
   }, [nodeColorStyles, content, onChange]);
 
@@ -636,7 +714,7 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
             />
 
             {selectedNodeId && selectedNodeStyle && onChange && (
-              <div className="absolute top-2 left-2 z-20 w-64 rounded-xl border shadow-lg p-3 animate-fade-in"
+              <div className="absolute top-2 left-2 z-20 w-72 rounded-xl border shadow-lg p-3 animate-fade-in"
                 style={{ background: 'var(--surface-floating)', borderColor: 'var(--border-subtle)' }}
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}>
@@ -662,36 +740,95 @@ export function PreviewPanel({ content, theme, onChange, onExport, onRenderTime,
                 <div className="flex flex-col gap-3">
                   <div>
                     <span className="text-[9px] font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Fill Color</span>
-                    <div className="grid grid-cols-6 gap-1 mb-2">
-                      {getPaletteColors().map((color, index) => (
-                        <button
-                          key={`${color}-${index}`}
-                          onClick={() => handleNodeColorChange(selectedNodeId, color)}
-                          className="w-6 h-6 rounded border hover:scale-110 transition-transform"
-                          style={{
-                            backgroundColor: color,
-                            borderColor: selectedNodeStyle.color === color ? 'var(--accent)' : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'),
-                            borderWidth: selectedNodeStyle.color === color ? '2px' : '1px'
-                          }}
-                          title={color}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>Custom:</span>
-                      <input
-                        type="text"
-                        value={selectedNodeStyle.color ?? ''}
-                        onChange={(e) => handleNodeColorChange(selectedNodeId, e.target.value)}
-                        className="flex-1 px-1.5 py-0.5 text-[8px] font-mono rounded border outline-hidden"
-                        style={{
-                          background: 'var(--surface-base)',
-                          borderColor: 'var(--border-subtle)',
-                          color: 'var(--text-primary)'
+                    <div ref={nodeColorDropdownContainerRef} className="relative">
+                      <button
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setNodeColorDropdownOpen(v => !v);
                         }}
-                        placeholder="#0066CC"
-                        maxLength={7}
-                      />
+                        className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md border text-xs transition-colors"
+                        style={{ background: 'var(--surface-base)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}>
+                        <span
+                          className="w-4 h-4 rounded-sm shrink-0 border"
+                          style={{
+                            background: selectedNodeStyle.color ?? 'repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 0 0 / 8px 8px',
+                            borderColor: 'var(--border-strong)',
+                          }}
+                        />
+                        <span className="flex-1 text-left truncate font-mono">
+                          {selectedNodeStyle.color || 'none'}
+                        </span>
+                      </button>
+
+                      {nodeColorDropdownOpen && (
+                        <div
+                          className="absolute left-0 top-full mt-1 z-50 w-72 rounded-xl border shadow-2xl p-3 animate-fade-in"
+                          style={{ background: 'var(--surface-floating)', borderColor: 'var(--border-subtle)' }}
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                        >
+                          <div className="grid grid-cols-8 gap-1 mb-3">
+                            {getPaletteColors().map(color => (
+                              <button
+                                key={color}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  handleNodeColorChange(selectedNodeId, color);
+                                  setNodeColorDropdownOpen(false);
+                                }}
+                                title={color}
+                                className="w-5 h-5 rounded-md border transition-all hover:scale-110 active:scale-95 flex items-center justify-center"
+                                style={{
+                                  background: color,
+                                  borderColor: selectedNodeStyle.color === color ? 'var(--accent)' : 'var(--border-subtle)',
+                                  outline: selectedNodeStyle.color === color ? '2px solid var(--accent)' : undefined,
+                                  outlineOffset: '1px',
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <div className="space-y-3">
+                            <HexColorPicker
+                              color={nodeColorHex || '#ffffff'}
+                              onChange={(color) => {
+                                setNodeColorHex(color);
+                                // Clear existing timeout
+                                if (colorChangeTimeoutRef.current) {
+                                  clearTimeout(colorChangeTimeoutRef.current);
+                                }
+                                // Debounce the actual color change
+                                colorChangeTimeoutRef.current = window.setTimeout(() => {
+                                  if (selectedNodeId) {
+                                    handleNodeColorChange(selectedNodeId, color);
+                                  }
+                                }, 100);
+                              }}
+                              style={{ width: '100%', height: 120 }}
+                            />
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={nodeColorHex}
+                                placeholder="#rrggbb"
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  setNodeColorHex(v);
+                                  if (/^#[0-9a-fA-F]{6}$/.test(v) || /^#[0-9a-fA-F]{3}$/.test(v)) {
+                                    handleNodeColorChange(selectedNodeId, v);
+                                  }
+                                }}
+                                className="flex-1 px-2 py-1 rounded-md border text-xs font-mono"
+                                style={{
+                                  background: 'var(--surface-base)',
+                                  borderColor: 'var(--border-subtle)',
+                                  color: 'var(--text-primary)',
+                                  outline: 'none'
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

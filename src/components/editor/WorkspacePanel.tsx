@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Save, Clock, Download, Sparkles, AlignLeft, Maximize, GitCompare, BookmarkPlus, MousePointer2, Code2, FilePlus, LayoutTemplate, Terminal, Palette, SlidersHorizontal, Undo, Copy, Check, RotateCw } from 'lucide-react';
 import { CodeEditor } from './CodeEditor';
+import type { CodeEditorRef } from './CodeEditor';
 import { PreviewPanel } from '@/preview/PreviewPanel';
 import { StatusBar } from './StatusBar';
 import { DiffView } from './DiffView';
@@ -50,6 +51,11 @@ export function WorkspacePanel({
   const [copiedCode, setCopiedCode] = useState(false);
   const [autoSave, setAutoSave] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const codeEditorRef = useRef<CodeEditorRef>(null);
+
+  function escapeRegExp(str: string) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
 
   const diagramType = activeTab ? detectDiagramType(activeTab.content) : 'unknown';
   const canUseVisual = diagramType === 'flowchart';
@@ -60,6 +66,26 @@ export function WorkspacePanel({
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
   }
+
+  const handleNodeSelect = useCallback((nodeId: string) => {
+    if (!activeTab) return;
+    const lines = activeTab.content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Match node definition patterns: A[Label], A{Label}, A(Label), etc.
+      const nodeDefMatch = line.match(
+        new RegExp(`^(\\s*)${escapeRegExp(nodeId)}(\\s*)(\\[|\\{|\\(|\\[\\[|\\[\\(|\\(\\[|\\(\\(|\\{\\{|>|\\[\\/|\\[\\\\)`)
+      );
+      // Also match node in edge: A --> B or A[Label] --> B[Label]
+      const edgeMatch = line.match(
+        new RegExp(`^(\\s*)${escapeRegExp(nodeId)}(\\s*)(\\(|\\[|\\{|)?(?:[^\\n]*?)\\s*(-->|---|---\\||-->)`)
+      );
+      if (nodeDefMatch || edgeMatch) {
+        codeEditorRef.current?.highlightLine(i + 1); // 1-indexed
+        return;
+      }
+    }
+  }, [activeTab]);
 
   // Auto-save every 30 seconds when enabled
   useEffect(() => {
@@ -196,7 +222,7 @@ export function WorkspacePanel({
             {showDiff ? (
               <DiffView original={activeTab.saved_content} modified={activeTab.content} />
             ) : (
-              <CodeEditor value={activeTab.content}
+              <CodeEditor ref={codeEditorRef} value={activeTab.content}
                 onChange={v => onContentChange(activeTab.id, v)}
                 onSave={() => onSave(activeTab.id)} theme={theme} />
             )}
@@ -210,6 +236,7 @@ export function WorkspacePanel({
               onExport={onShowExport}
               onRenderTime={onRenderTime}
               onFullscreen={onFullscreen}
+              onNodeSelect={handleNodeSelect}
             />
           </div>
         </div>
