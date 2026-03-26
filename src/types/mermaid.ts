@@ -6,7 +6,7 @@ export type DiagramType =
   | 'erDiagram' | 'gantt' | 'pie' | 'mindmap' | 'gitGraph'
   | 'journey' | 'quadrantChart' | 'requirementDiagram' | 'timeline'
   | 'sankey' | 'xyChart' | 'packetDiagram' | 'kanban'
-  | 'architectureDiagram' | 'zenuml' | 'blockDiagram' | 'unknown';
+  | 'architectureDiagram' | 'zenuml' | 'blockDiagram' | 'c4' | 'unknown';
 
 export interface ColorPalette {
   id: string;
@@ -36,17 +36,128 @@ export interface Template {
 
 export type LayoutEngine = 'dagre' | 'elk' | 'elk.stress';
 
-export interface DiagramStyleOptions {
+// Base style options that apply to all diagram types
+export interface BaseStyleOptions {
   fontFamily: string;
   fontSize: number;
+}
+
+// Flowchart-specific options
+export interface FlowchartStyleOptions {
   nodePadding: number;
   nodeSpacing: number;
   rankSpacing: number;
   curveStyle: 'basis' | 'linear' | 'stepBefore' | 'stepAfter' | 'cardinal' | 'catmullRom';
   borderRadius: number;
-  borderWidth: number;
   useMaxWidth: boolean;
   layoutEngine: LayoutEngine;
+}
+
+// Sequence diagram-specific options
+export interface SequenceStyleOptions {
+  diagramMarginX: number;
+  diagramMarginY: number;
+  actorMargin: number;
+  width: number;
+  height: number;
+  boxMargin: number;
+  mirrorActors: boolean;
+}
+
+// Gantt chart-specific options
+export interface GanttStyleOptions {
+  titleTopMargin: number;
+  barHeight: number;
+  barGap: number;
+  topPadding: number;
+  leftPadding: number;
+  axisFormat: string;
+  sectionMargin: number;
+}
+
+// Combined style options for all types
+export interface DiagramStyleOptions extends BaseStyleOptions {
+  // Flowchart options (apply to flowcharts, journey, c4, block, architecture)
+  nodePadding?: number;
+  nodeSpacing?: number;
+  rankSpacing?: number;
+  curveStyle?: 'basis' | 'linear' | 'stepBefore' | 'stepAfter' | 'cardinal' | 'catmullRom' | 'natural';
+  borderRadius?: number;
+  borderWidth?: number;
+  useMaxWidth?: boolean;
+  layoutEngine?: LayoutEngine;
+
+  // Sequence diagram options
+  diagramMarginX?: number;
+  diagramMarginY?: number;
+  actorMargin?: number;
+  actorWidth?: number;
+  actorHeight?: number;
+  boxMargin?: number;
+  mirrorActors?: boolean;
+  messageAlign?: 'left' | 'center' | 'right';
+  rightAngles?: boolean;
+  showSequenceNumbers?: boolean;
+  wrap?: boolean;
+
+  // Gantt chart options
+  titleTopMargin?: number;
+  barHeight?: number;
+  barGap?: number;
+  topPadding?: number;
+  leftPadding?: number;
+  axisFormat?: string;
+  sectionMargin?: number;
+
+  // Mindmap options
+  maxNodeWidth?: number;
+  maxNodeHeight?: number;
+  maxTextWidth?: number;
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // State diagram options
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // Class diagram options
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // ER diagram options
+  padding?: number;
+  useMaxWidth?: boolean;
+  minEntityWidth?: number;
+  minEntityHeight?: number;
+
+  // Journey options (uses flowchart config)
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // Timeline options
+  disableMulticolor?: boolean;
+  htmlLabels?: boolean;
+
+  // Block diagram options
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // C4 context options
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // Architecture diagram options
+  padding?: number;
+  useMaxWidth?: boolean;
+
+  // Quadrant chart options (uses pie config)
+  chartWidth?: number;
+  chartHeight?: number;
+
+  // XY chart options
+  showDataLabel?: boolean;
+  xAxisTitle?: string;
+  yAxisTitle?: string;
 }
 
 export const DEFAULT_STYLE_OPTIONS: DiagramStyleOptions = {
@@ -61,3 +172,135 @@ export const DEFAULT_STYLE_OPTIONS: DiagramStyleOptions = {
   useMaxWidth: true,
   layoutEngine: 'dagre',
 };
+
+// Styling capabilities per diagram type
+export interface StylingCapabilities {
+  supportsClassDef: boolean;  // Can use classDef/class for individual node colors
+  supportsFlowchartConfig: boolean;  // Can use flowchart config (curve, spacing, etc.)
+  supportsSequenceConfig: boolean;  // Can use sequence config
+  supportsGanttConfig: boolean;  // Can use gantt config
+  availableConfigOptions: string[];  // List of available config option names
+}
+
+export function getStylingCapabilities(diagramType: DiagramType): StylingCapabilities {
+  switch (diagramType) {
+    case 'flowchart':
+    case 'journey':
+    case 'c4':
+    case 'blockDiagram':
+    case 'architectureDiagram':
+      return {
+        supportsClassDef: true,
+        supportsFlowchartConfig: true,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth', 'htmlLabels', 'layoutEngine'],
+      };
+
+    case 'stateDiagram':
+      return {
+        supportsClassDef: true,
+        supportsFlowchartConfig: true,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth', 'layoutEngine'],
+      };
+
+    case 'classDiagram':
+      return {
+        supportsClassDef: true,
+        supportsFlowchartConfig: true,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth', 'layoutEngine'],
+      };
+
+    case 'sequence':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: true,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['diagramMarginX', 'diagramMarginY', 'actorMargin', 'width', 'height', 'boxMargin', 'mirrorActors', 'useMaxWidth', 'messageAlign', 'rightAngles', 'showSequenceNumbers', 'wrap'],
+      };
+
+    case 'gantt':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: true,
+        availableConfigOptions: ['titleTopMargin', 'barHeight', 'barGap', 'topPadding', 'leftPadding', 'axisFormat', 'sectionMargin', 'useMaxWidth'],
+      };
+
+    case 'erDiagram':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: true,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['curve', 'padding', 'nodeSpacing', 'rankSpacing', 'useMaxWidth', 'minEntityWidth', 'minEntityHeight', 'layoutEngine'],
+      };
+
+    case 'mindmap':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['maxNodeWidth', 'maxNodeHeight', 'maxTextWidth', 'padding', 'useMaxWidth', 'layoutEngine'],
+      };
+
+    case 'pie':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['useMaxWidth'],
+      };
+
+    case 'timeline':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['disableMulticolor', 'htmlLabels', 'useMaxWidth'],
+      };
+
+    case 'quadrantChart':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['chartWidth', 'chartHeight', 'useMaxWidth'],
+      };
+
+    case 'xyChart':
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: ['showDataLabel', 'xAxisTitle', 'yAxisTitle', 'useMaxWidth'],
+      };
+
+    case 'gitGraph':
+    case 'requirementDiagram':
+    case 'sankey':
+    case 'packetDiagram':
+    case 'kanban':
+    case 'zenuml':
+    case 'unknown':
+    default:
+      return {
+        supportsClassDef: false,
+        supportsFlowchartConfig: false,
+        supportsSequenceConfig: false,
+        supportsGanttConfig: false,
+        availableConfigOptions: [],
+      };
+  }
+}

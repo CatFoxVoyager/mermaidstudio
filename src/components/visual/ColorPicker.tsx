@@ -24,21 +24,27 @@ interface Props {
 export function ColorPicker({ label, value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [hex, setHex] = useState(value && value !== 'none' && value !== 'transparent' ? value : '');
-  const ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const nativeRef = useRef<HTMLInputElement>(null);
 
-  // Sync hex when value prop changes (useLayoutEffect for sync during render)
+  // Sync hex when value prop changes
   useLayoutEffect(() => {
     if (value && value !== 'none' && value !== 'transparent') {setHex(value);}
     else {setHex('');}
   }, [value]);
 
   useEffect(() => {
-    function onOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {setOpen(false);}
+    if (!open) return;
+
+    function handleMouseDown(e: MouseEvent) {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
     }
-    if (open) {document.addEventListener('mousedown', onOutside);}
-    return () => document.removeEventListener('mousedown', onOutside);
+
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
   }, [open]);
 
   function handleHexChange(v: string) {
@@ -59,9 +65,12 @@ export function ColorPicker({ label, value, onChange }: Props) {
       <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
         {label}
       </span>
-      <div ref={ref} className="relative">
+      <div ref={containerRef} className="relative">
         <button
-          onClick={() => setOpen(v => !v)}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setOpen(v => !v);
+          }}
           className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md border text-xs transition-colors"
           style={{ background: 'var(--surface-base)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}>
           <span
@@ -82,7 +91,10 @@ export function ColorPicker({ label, value, onChange }: Props) {
               {PRESETS.map(color => (
                 <button
                   key={color}
-                  onClick={() => handlePreset(color)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handlePreset(color);
+                  }}
                   title={color}
                   className="w-5 h-5 rounded-md border transition-all hover:scale-110 active:scale-95 flex items-center justify-center"
                   style={{
@@ -109,7 +121,10 @@ export function ColorPicker({ label, value, onChange }: Props) {
                 onChange={e => { onChange(e.target.value); setHex(e.target.value); }}
               />
               <button
-                onClick={() => nativeRef.current?.click()}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  nativeRef.current?.click();
+                }}
                 className="flex items-center justify-center w-8 h-7 rounded-md border transition-colors hover:bg-white/5"
                 style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}
                 title="Custom color">
