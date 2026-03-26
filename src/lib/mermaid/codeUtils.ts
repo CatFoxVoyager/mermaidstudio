@@ -30,12 +30,20 @@ export interface NodeStyle {
   ry?: string;              // e.g., "10"
 }
 
+export interface EdgeStyle {
+  stroke?: string;
+  strokeWidth?: string;
+  strokeDasharray?: string;  // e.g., "5 5" for dashed
+  opacity?: string;          // e.g., "0.5"
+}
+
 export interface ParsedDiagram {
   nodes: ParsedNode[];
   edges: ParsedEdge[];
   styles: Map<string, NodeStyle>;
   classDefs: Map<string, NodeStyle>;
   nodeClasses: Map<string, string[]>;
+  linkStyles: Map<number, EdgeStyle>;
 }
 
 const SHAPE_PATTERNS: Array<{ shape: NodeShape; open: string; close: string; regex: RegExp }> = [
@@ -118,6 +126,147 @@ export function styleToString(style: NodeStyle): string {
   return parts.join(',');
 }
 
+export function parseLinkStyles(source: string): Map<number, EdgeStyle> {
+  const linkStyles = new Map<number, EdgeStyle>();
+  const lines = source.split('\n');
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const match = trimmed.match(/^linkStyle\s+(\d+)\s+(.+)$/);
+    if (match) {
+      const index = parseInt(match[1], 10);
+      const styleStr = match[2];
+      linkStyles.set(index, parseEdgeStyleValue(styleStr));
+    }
+  }
+
+  return linkStyles;
+}
+
+function parseEdgeStyleValue(val: string): EdgeStyle {
+  const style: EdgeStyle = {};
+  const separator = val.includes(',') && !val.includes(';') ? ',' : ';';
+  val.split(separator).forEach(part => {
+    const [k, v] = part.trim().split(':').map(s => s.trim());
+    if (!k || !v) {return;}
+    if (k === 'stroke') {style.stroke = v;}
+    else if (k === 'stroke-width') {style.strokeWidth = v;}
+    else if (k === 'stroke-dasharray') {style.strokeDasharray = v;}
+    else if (k === 'opacity') {style.opacity = v;}
+  });
+  return style;
+}
+
+export function edgeStyleToString(style: EdgeStyle): string {
+  const parts: string[] = [];
+  if (style.stroke !== undefined) {parts.push(`stroke:${style.stroke}`);}
+  if (style.strokeWidth !== undefined) {parts.push(`stroke-width:${style.strokeWidth}`);}
+  if (style.strokeDasharray !== undefined) {parts.push(`stroke-dasharray:${style.strokeDasharray}`);}
+  if (style.opacity !== undefined) {parts.push(`opacity:${style.opacity}`);}
+  return parts.join(',');
+}
+
+export function updateLinkStyle(source: string, edgeIndex: number, style: EdgeStyle): string {
+  const lines = source.split('\n');
+  const styleStr = edgeStyleToString(style);
+
+  const existingIdx = lines.findIndex(l => {
+    const t = l.trim();
+    return t.match(new RegExp(`^linkStyle\\s+${edgeIndex}\\s+`));
+  });
+
+  const styleLine = `linkStyle ${edgeIndex} ${styleStr}`;
+
+  if (existingIdx !== -1) {
+    if (styleStr) {
+      lines[existingIdx] = styleLine;
+    } else {
+      lines.splice(existingIdx, 1);
+    }
+  } else if (styleStr) {
+    // Append after the last linkStyle line or at the end
+    let insertIdx = lines.length;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].trim().startsWith('linkStyle')) {
+        insertIdx = i + 1;
+        break;
+      }
+    }
+    lines.splice(insertIdx, 0, styleLine);
+  }
+
+  return lines.join('\n');
+}
+
+export function removeLinkStyles(source: string, indices: number[]): string {
+  const indicesToRemove = new Set(indices);
+  const lines = source.split('\n');
+  const filtered = lines.filter(line => {
+    const trimmed = line.trim();
+    const match = trimmed.match(/^linkStyle\s+(\d+)/);
+    if (match) {
+      const idx = parseInt(match[1], 10);
+      return !indicesToRemove.has(idx);
+    }
+    return true;
+  });
+  const result = filtered.join('\n').replace(/\n{3,}/g, '\n\n');
+  if (source.endsWith('\n')) {
+    return result.trimEnd() + '\n';
+  }
+  return result.trimEnd();
+}
+
+export function updateEdgeArrowType(source: string, srcId: string, tgtId: string, newType: string): string {
+  const lines = source.split('\n');
+  const arrowPattern = new RegExp(
+    `(${escapeRegex(srcId)})\\s*(\\[[^\\]]*\\])?\\s*(-->|---|-\\.->|==>|-->>|\\.->|<-->|o--o|--o|o--|--\\|>|\\|>|~~~)\\|?([^|]*)?\\|?\\s*(${escapeRegex(tgtId)})`
+  );
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(arrowPattern);
+    if (match) {
+      const label = match[4]?.trim() ?? '';
+      const srcLabel = match[2] ?? '';
+      if (label) {
+        lines[i] = lines[i].replace(arrowPattern, `${match[1]}${srcLabel} ${newType}|${label}| ${match[5]}`);
+      } else {
+        lines[i] = lines[i].replace(arrowPattern, `${match[1]}${srcLabel} ${newType} ${match[5]}`);
+      }
+      return lines.join('\n');
+    }
+  }
+
+  return source;
+}
+
+export function updateEdgeLabel(source: string, srcId: string, tgtId: string, newLabel: string): string {
+  const lines = source.split('\n');
+  const arrowPattern = new RegExp(
+    `(${escapeRegex(srcId)})\\s*(\\[[^\\]]*\\])?\\s*(-->|---|-\\.->|==>|-->>|\\.->|<-->|o--o|--o|o--|--\\|>|\\|>|~~~)\\|?([^|]*)?\\|?\\s*(${escapeRegex(tgtId)})`
+  );
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(arrowPattern);
+    if (match) {
+      const arrowType = match[3];
+      const srcLabel = match[2] ?? '';
+      if (newLabel) {
+        lines[i] = lines[i].replace(arrowPattern, `${match[1]}${srcLabel} ${arrowType}|${newLabel}| ${match[5]}`);
+      } else {
+        lines[i] = lines[i].replace(arrowPattern, `${match[1]}${srcLabel} ${arrowType} ${match[5]}`);
+      }
+      return lines.join('\n');
+    }
+  }
+
+  return source;
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export function parseDiagram(source: string): ParsedDiagram {
   const lines = source.split('\n');
   const nodes: ParsedNode[] = [];
@@ -170,7 +319,11 @@ export function parseDiagram(source: string): ParsedDiagram {
       continue;
     }
 
-    if (trimmed.startsWith('linkStyle') || trimmed.startsWith('subgraph') || trimmed === 'end') {continue;}
+    if (trimmed.startsWith('subgraph') || trimmed === 'end') {continue;}
+
+    // Parse linkStyle lines
+    const linkStyleMatch = trimmed.match(/^linkStyle\s+(\d+)\s+(.+)$/);
+    if (linkStyleMatch) {continue;}
 
     const edgeMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*(?:\[([^\]]*)\])?\s*(-->|---|-.->|-\.->|==>|-->>|\.->|<-->|o--o|--o|o--|--\|>|\|>|~~~)[^\n]*/);
     if (edgeMatch) {
@@ -215,7 +368,8 @@ export function parseDiagram(source: string): ParsedDiagram {
     }
   }
 
-  return { nodes, edges, styles, classDefs, nodeClasses };
+  const linkStyles = parseLinkStyles(source);
+  return { nodes, edges, styles, classDefs, nodeClasses, linkStyles };
 }
 
 export function updateNodeStyle(source: string, nodeId: string, style: NodeStyle): string {
