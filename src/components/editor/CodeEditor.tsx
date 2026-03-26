@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { EditorView, basicSetup } from 'codemirror';
-import { EditorState } from '@codemirror/state';
+import { Decoration, keymap } from '@codemirror/view';
+import { EditorState, StateEffect, StateField } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { keymap } from '@codemirror/view';
 import { defaultKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching } from '@codemirror/language';
 import { mermaidLanguage } from '@/lib/mermaid/language';
@@ -15,7 +15,41 @@ interface Props {
   theme: 'dark' | 'light';
 }
 
-export function CodeEditor({ value, onChange, onSave, theme }: Props) {
+export interface CodeEditorRef {
+  highlightLine: (line: number) => void;
+  scrollToLine: (line: number) => void;
+}
+
+// StateEffects for adding/removing line highlight
+const highlightLineEffect = StateEffect.define<number>();
+const clearHighlightEffect = StateEffect.define<void>();
+
+// StateField that manages the highlight decoration
+const highlightField = StateField.define<Decoration.set>({
+  create() { return Decoration.none; },
+  update(decorations, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(highlightLineEffect)) {
+        const line = effect.value;
+        if (line >= 1 && line <= tr.state.doc.lines) {
+          const lineInfo = tr.state.doc.line(line);
+          const decoration = Decoration.line({
+            attributes: { class: 'cm-active-line-highlight' },
+          });
+          decorations = Decoration.set([decoration.range(lineInfo.from)]);
+        }
+      }
+      if (effect.is(clearHighlightEffect)) {
+        decorations = Decoration.none;
+      }
+    }
+    decorations = decorations.map(tr.changes);
+    return decorations;
+  },
+  provide: f => EditorView.decorations.from(f),
+});
+
+export const CodeEditor = forwardRef<CodeEditorRef, Props>(function CodeEditor({ value, onChange, onSave, theme }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -26,6 +60,35 @@ export function CodeEditor({ value, onChange, onSave, theme }: Props) {
     onChangeRef.current = onChange;
     onSaveRef.current = onSave;
   }, [onChange, onSave]);
+
+  useImperativeHandle(ref, () => ({
+    highlightLine(line: number) {
+      const view = viewRef.current;
+      if (!view) return;
+      const clampedLine = Math.min(Math.max(1, line), view.state.doc.lines);
+      view.dispatch({
+        effects: [
+          highlightLineEffect.of(clampedLine),
+          EditorView.scrollIntoView(view.state.doc.line(clampedLine).from),
+        ],
+      });
+      // Auto-clear after 2 seconds
+      setTimeout(() => {
+        if (viewRef.current) {
+          viewRef.current.dispatch({ effects: clearHighlightEffect.of(undefined) });
+        }
+      }, 2000);
+    },
+    scrollToLine(line: number) {
+      const view = viewRef.current;
+      if (!view) return;
+      const clampedLine = Math.min(Math.max(1, line), view.state.doc.lines);
+      const lineInfo = view.state.doc.line(clampedLine);
+      view.dispatch({
+        effects: EditorView.scrollIntoView(lineInfo.from),
+      });
+    },
+  }), []);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -39,6 +102,7 @@ export function CodeEditor({ value, onChange, onSave, theme }: Props) {
         mermaidLanguage,
         mermaidAutocomplete,
         bracketMatching(),
+        highlightField,
         ...(theme === 'dark' ? [oneDark] : []),
         keymap.of([
           { key: 'Mod-s', run: () => { onSaveRef.current?.(); return true; } },
@@ -76,4 +140,4 @@ export function CodeEditor({ value, onChange, onSave, theme }: Props) {
   }, [value]);
 
   return <div data-testid="code-editor" ref={containerRef} className="h-full overflow-hidden" />;
-}
+});
