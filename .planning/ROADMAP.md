@@ -42,7 +42,17 @@
 - [ ] [11-05-PLAN.md](./phases/11-node-style-editing-in-preview/11-05-PLAN.md) — Manual verification checkpoint
 
 ## Phase 12 — Refonte du systeme de palettes et themes Mermaid - migration vers des fichiers theme natifs
-**Goal:** [To be planned]
-**Status:** Ready
+**Goal:** Superseded by Phase 13
+**Status:** Superseded
 **Depends on:** Phase 11
-**Plans:** 0 plans
+**Plans:** Scope fully absorbed into Phase 13
+
+## Phase 13 — Custom Mermaid themes from color palettes
+**Goal:** Replace the 8-color palette system with a proper Mermaid-native theme system using ~20 core color slots and a derivation engine that mirrors Mermaid's internal Theme.updateColors() logic to produce ~200 themeVariables. Includes theme editor panel, DiagramColorsPanel refactor, and dual apply mechanism (app default + per-diagram frontmatter).
+**Status:** Planned
+**Depends on:** Phase 11 (supersedes Phase 12)
+**Plans:** 4 plans in 3 waves
+- [ ] [13-01-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-01-PLAN.md) — Theme types, derivation engine, preset themes, tests
+- [ ] [13-02-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-02-PLAN.md) — Theme editor sidebar panel with live preview
+- [ ] [13-03-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-03-PLAN.md) — DiagramColorsPanel refactor + full migration from palettes to themes
+- [ ] [13-04-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-04-PLAN.md) — App-level default theme persistence + dual apply wiring
