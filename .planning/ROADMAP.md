@@ -21,7 +21,7 @@
 **Depends on:** Phase 08
 
 ## Phase 10 — Visual Polish
-**Goal:** Revoir le visuel car c'est pas très beau et professionnels, il faut que ce soit aussi optimal
+**Goal:** Revoir le visuel car c'est pas tres beau et professionnels, il faut que ce soit aussi optimal
 **Status:** In progress
 **Depends on:** Phase 09
 **Plans:**
@@ -51,8 +51,8 @@
 **Goal:** Replace the 8-color palette system with a proper Mermaid-native theme system using ~20 core color slots and a derivation engine that mirrors Mermaid's internal Theme.updateColors() logic to produce ~200 themeVariables. Includes theme editor panel, DiagramColorsPanel refactor, and dual apply mechanism (app default + per-diagram frontmatter).
 **Status:** Planned
 **Depends on:** Phase 11 (supersedes Phase 12)
-**Plans:** 4 plans in 3 waves
-- [ ] [13-01-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-01-PLAN.md) — Theme types, derivation engine, preset themes, tests
-- [ ] [13-02-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-02-PLAN.md) — Theme editor sidebar panel with live preview
-- [ ] [13-03-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-03-PLAN.md) — DiagramColorsPanel refactor + full migration from palettes to themes
-- [ ] [13-04-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-04-PLAN.md) — App-level default theme persistence + dual apply wiring
+**Plans:** 4 plans in 4 waves
+- [ ] [13-01-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-01-PLAN.md) — Theme types, derivation engine, preset themes, tests (Wave 1)
+- [ ] [13-02-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-02-PLAN.md) — Theme editor sidebar panel with live preview (Wave 2)
+- [ ] [13-03-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-03-PLAN.md) — DiagramColorsPanel refactor + full migration from palettes to themes (Wave 3)
+- [ ] [13-04-PLAN.md](./phases/13-custom-mermaid-themes-from-color-palettes/13-04-PLAN.md) — App-level default theme persistence + dual apply wiring (Wave 4)
