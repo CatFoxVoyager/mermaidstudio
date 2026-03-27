@@ -5,7 +5,7 @@ milestone_name: milestone
 current_phase: 11
 status: Milestone complete
 stopped_at: Phase 13 context gathered
-last_updated: "2026-03-27T14:38:42.675Z"
+last_updated: "2026-03-27T17:50:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 4
@@ -50,6 +50,7 @@ Plan: Not started
 | 260326-g1z | Port node insertion toolbar from VisualEditorCanvas into PreviewPanel | 2026-03-26 | 8063324 | Verified | [260326-g1z-port-node-insertion-toolbar-from-visuale](./quick/260326-g1z-port-node-insertion-toolbar-from-visuale/) |
 | 260327-b1e | Support diagram colors for non-classDef types | 2026-03-27 | 47889b8 | Verified | [260327-b1e-support-diagram-colors-for-non-classdef-](./quick/260327-b1e-support-diagram-colors-for-non-classdef-/) |
 | 260327-c50 | Fix C4 diagram color palette styling | 2026-03-27 | f4c7b0f | Verified | [260327-c50-audit-all-mermaid-diagram-types-styling-](./quick/260327-c50-audit-all-mermaid-diagram-types-styling-/) |
+| 260327-iwh | Add all missing Mermaid flowchart features ( v11 shapes, icons, markdown, edges) | 2026-03-27 | a7433bd | Verified | [260327-iwh-add-all-missing-mermaid-flowchart-featur](./quick/260327-iwh-add-all-missing-mermaid-flowchart-featur/) |
 
 ## Performance Metrics
 
