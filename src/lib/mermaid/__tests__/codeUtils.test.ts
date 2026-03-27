@@ -390,5 +390,53 @@ A-->B`;
       expect(result.nodes[0].id).toBe('A');
       expect(result.nodes[0].label).toBe('Node A');
     });
+
+    it('should parse FontAwesome icon syntax', () => {
+      const source = 'flowchart TD\nA[@{ icon: "fa:user", form: "square", label: "User", pos: "t", h: 60 }]';
+      const result = parseDiagram(source);
+
+      expect(result.nodes[0].icon).toBeDefined();
+      expect(result.nodes[0].icon?.icon).toBe('fa:user');
+      expect(result.nodes[0].icon?.form).toBe('square');
+      expect(result.nodes[0].icon?.label).toBe('User');
+      expect(result.nodes[0].icon?.pos).toBe('t');
+      expect(result.nodes[0].icon?.h).toBe(60);
+    });
+
+    it('should parse markdown-style labels', () => {
+      const source = 'flowchart TD\nA[`**bold**`]';
+      const result = parseDiagram(source);
+
+      expect(result.nodes[0].label).toBe('**bold**');
+    });
+
+    it('should parse click events and skip them', () => {
+      const source = 'flowchart TD\nA-->B\nclick A "https://example.com"\nclick B callback "Tooltip"';
+      const result = parseDiagram(source);
+
+      // Should not crash, click events are skipped
+      expect(result.nodes).toHaveLength(2);
+      expect(result.edges).toHaveLength(1);
+    });
+
+    it('should parse subgraph direction and skip it', () => {
+      const source = 'flowchart TD\nsubgraph S\n direction LR\nA-->B\nend';
+      const result = parseDiagram(source);
+
+      // Should not crash, direction is skipped
+      expect(result).toBeDefined();
+    });
+
+    it('should parse new edge types', () => {
+      const source = 'flowchart TD\nA~~~B\nAx--xB\nC--oD\nEo--F\nG--|>H';
+      const result = parseDiagram(source);
+
+      expect(result.edges).toHaveLength(5);
+      expect(result.edges[0].arrowType).toBe('~~~');
+      expect(result.edges[1].arrowType).toBe('x--x');
+      expect(result.edges[2].arrowType).toBe('--o');
+      expect(result.edges[3].arrowType).toBe('o--');
+      expect(result.edges[4].arrowType).toBe('--|>');
+    });
   });
 });

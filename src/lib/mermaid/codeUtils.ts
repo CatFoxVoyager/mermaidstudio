@@ -1,13 +1,24 @@
 export type NodeShape =
   | 'rect' | 'round' | 'stadium' | 'subroutine' | 'cylinder'
   | 'circle' | 'asymmetric' | 'rhombus' | 'hexagon' | 'parallelogram'
-  | 'parallelogram-alt' | 'trapezoid' | 'trapezoid-alt';
+  | 'parallelogram-alt' | 'trapezoid' | 'trapezoid-alt'
+  | 'doc' | 'docs' | 'dbl-circ' | 'cross-circ' | 'bow-rect'
+  | 'flip-tri' | 'curv-trap' | 'manual-file' | 'manual-input' | 'procs' | 'paper-tape';
 
 export interface ParsedNode {
   id: string;
   label: string;
   shape: NodeShape;
   raw: string;
+  icon?: IconConfig;
+}
+
+export interface IconConfig {
+  icon: string;
+  form?: 'square' | 'circle' | 'rounded' | 'squircle';
+  label?: string;
+  pos?: 't' | 'b' | 'l' | 'r' | 'c';
+  h?: number;
 }
 
 export interface ParsedEdge {
@@ -47,13 +58,49 @@ const SHAPE_PATTERNS: Array<{ shape: NodeShape; open: string; close: string; reg
   { shape: 'trapezoid',      open: '[/', close: '\\]', regex: /^\[\/(.+?)\\\]$/ },
   { shape: 'trapezoid-alt',  open: '[\\', close: '/]', regex: /^\[\\(.+?)\/\]$/ },
   { shape: 'rect',           open: '[',  close: ']',   regex: /^\[(.+?)\]$/ },
+  // v11 new shapes
+  { shape: 'doc',            open: '[/', close: '/]',  regex: /^\[\/(.+?)\/\]$/ },  // Document (wavy bottom)
+  { shape: 'docs',           open: '[/', close: '/]',  regex: /^\[\/(.+?)\/\]$/ },  // Multi-documents
+  { shape: 'dbl-circ',       open: '((', close: '))',  regex: /^\(\((.+?)\)\)$/ },  // Double circle
+  { shape: 'cross-circ',     open: '((', close: '))',  regex: /^\(\((.+?)\)\)$/ },  // Crossed circle
+  { shape: 'bow-rect',       open: '[',  close: ']',   regex: /^\[(.+?)\]$/ },      // Bow-tie rectangle
+  { shape: 'flip-tri',       open: '[',  close: ']',   regex: /^\[(.+?)\]$/ },      // Flipped triangle
+  { shape: 'curv-trap',      open: '[/', close: '\\]', regex: /^\[\/(.+?)\\\]$/ },  // Curved trapezoid
+  { shape: 'manual-file',    open: '[',  close: ']',   regex: /^\[(.+?)\]$/ },      // Manual file
+  { shape: 'manual-input',   open: '[/', close: '/]',  regex: /^\[\/(.+?)\/\]$/ },  // User input
+  { shape: 'procs',          open: '[',  close: ']',   regex: /^\[(.+?)\]$/ },      // Process automation
+  { shape: 'paper-tape',     open: '[',  close: ']',   regex: /^\[(.+?)\]$/ },      // Paper records
 ];
 
-function parseNodeLabel(raw: string): { label: string; shape: NodeShape } {
+function parseNodeLabel(raw: string): { label: string; shape: NodeShape; icon?: IconConfig } {
   const trimmed = raw.trim();
+
   for (const pat of SHAPE_PATTERNS) {
     const m = trimmed.match(pat.regex);
-    if (m) {return { label: m[1], shape: pat.shape };}
+    if (m) {
+      let labelContent = m[1];
+
+      // Check for markdown-style labels (backtick-wrapped) inside the shape
+      const markdownMatch = labelContent.match(/^`(.+)`$/);
+      if (markdownMatch) {
+        labelContent = markdownMatch[1];
+      }
+
+      // Check if label contains FontAwesome icon syntax: @{ icon: "fa:user", form: "square", label: "User", pos: "t", h: 60 }
+      const innerIconMatch = labelContent.match(/@\{\s*icon:\s*["']([^"']+)["'](?:\s*,\s*form:\s*["']?(\w+)["']?)?(?:\s*,\s*label:\s*["']([^"']*)["'])?(?:\s*,\s*pos:\s*["']?([tblrc])["']?)?(?:\s*,\s*h:\s*(\d+))?\s*\}/);
+      if (innerIconMatch) {
+        const icon: IconConfig = {
+          icon: innerIconMatch[1],
+          ...(innerIconMatch[2] && { form: innerIconMatch[2] as 'square' | 'circle' | 'rounded' | 'squircle' }),
+          ...(innerIconMatch[3] && { label: innerIconMatch[3] }),
+          ...(innerIconMatch[4] && { pos: innerIconMatch[4] as 't' | 'b' | 'l' | 'r' | 'c' }),
+          ...(innerIconMatch[5] && { h: parseInt(innerIconMatch[5], 10) }),
+        };
+        const labelWithoutIcon = labelContent.replace(/@\{[^}]*\}/, '').trim();
+        return { label: labelWithoutIcon || labelContent, shape: pat.shape, icon };
+      }
+      return { label: labelContent, shape: pat.shape };
+    }
   }
   return { label: trimmed, shape: 'rect' };
 }
@@ -73,6 +120,18 @@ function shapeWrap(label: string, shape: NodeShape): string {
     case 'parallelogram-alt': return `[\\${label}\\]`;
     case 'trapezoid':       return `[/${label}\\]`;
     case 'trapezoid-alt':   return `[\\${label}/]`;
+    // v11 new shapes - use @{ shape: "name" } syntax
+    case 'doc':             return `@{ shape: "doc", label: "${label}" }`;
+    case 'docs':            return `@{ shape: "docs", label: "${label}" }`;
+    case 'dbl-circ':        return `@{ shape: "dbl-circ", label: "${label}" }`;
+    case 'cross-circ':      return `@{ shape: "cross-circ", label: "${label}" }`;
+    case 'bow-rect':        return `@{ shape: "bow-rect", label: "${label}" }`;
+    case 'flip-tri':        return `@{ shape: "flip-tri", label: "${label}" }`;
+    case 'curv-trap':       return `@{ shape: "curv-trap", label: "${label}" }`;
+    case 'manual-file':     return `@{ shape: "manual-file", label: "${label}" }`;
+    case 'manual-input':    return `@{ shape: "manual-input", label: "${label}" }`;
+    case 'procs':           return `@{ shape: "procs", label: "${label}" }`;
+    case 'paper-tape':      return `@{ shape: "paper-tape", label: "${label}" }`;
     default:                return `[${label}]`;
   }
 }
@@ -155,7 +214,17 @@ export function parseDiagram(source: string): ParsedDiagram {
 
     if (trimmed.startsWith('linkStyle') || trimmed.startsWith('subgraph') || trimmed === 'end') {continue;}
 
-    const edgeMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*(?:\[([^\]]*)\])?\s*(-->|---|-.->|-\.->|==>|-->>|\.->|<-->|o--o|--o|o--|--\|>|\|>|~~~)[^\n]*/);
+    // Parse and skip click events
+    if (trimmed.startsWith('click ')) {
+      continue;
+    }
+
+    // Parse and skip subgraph direction
+    if (trimmed.startsWith('direction ')) {
+      continue;
+    }
+
+    const edgeMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_-]*?)\s*(?:\[([^\]]*)\])?\s*(--\|>|-->|---|-.->|-\.->|==>|-->>|\.->|<-->|o--o|--o|o--|~~~|x--x|\|>)[^\n]*/);
     if (edgeMatch) {
       const sourceId = edgeMatch[1];
       if (!seenIds.has(sourceId)) {
@@ -163,7 +232,7 @@ export function parseDiagram(source: string): ParsedDiagram {
         nodes.push({ id: sourceId, label: sourceId, shape: 'rect', raw: sourceId });
       }
 
-      const arrowMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_-]*)((?:\[[^\]]*\])?)\s*(-->|---|-.->|-\.->|==>|-->>|\.->|<-->|o--o|--o|o--|--\|>|\|>|~~~)\|?([^|]*)?\|?\s*([A-Za-z_][A-Za-z0-9_-]*)((?:\[[^\]]*\]|(?:\(\[|\[\[|\[\(|\(\(|\{\{|\{|\(|>)[^\n]*)?)/);
+      const arrowMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_-]*?)((?:\[[^\]]*\])?)\s*(--\|>|-->|---|-.->|-\.->|==>|-->>|\.->|<-->|o--o|--o|o--|~~~|x--x|\|>)\|?([^|]*)?\|?\s*([A-Za-z_][A-Za-z0-9_-]*?)((?:\[[^\]]*\]|(?:\(\[|\[\[|\[\(|\(\(|\{\{|\{|\(|>)[^\n]*)?)/);
       if (arrowMatch) {
         const targetId = arrowMatch[5];
         if (!seenIds.has(targetId)) {
@@ -179,10 +248,10 @@ export function parseDiagram(source: string): ParsedDiagram {
     if (nodeMatch) {
       const id = nodeMatch[2];
       const rest = nodeMatch[4].trim();
-      const { label, shape } = parseNodeLabel(rest);
+      const { label, shape, icon } = parseNodeLabel(rest);
       if (!seenIds.has(id)) {
         seenIds.add(id);
-        nodes.push({ id, label, shape, raw: rest });
+        nodes.push({ id, label, shape, raw: rest, icon });
       }
       continue;
     }
