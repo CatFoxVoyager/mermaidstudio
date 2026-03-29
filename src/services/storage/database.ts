@@ -119,11 +119,11 @@ async function migrateFromLocalStorage(): Promise<DBData> {
     const raw = localStorage.getItem(LOCAL_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as DBData;
-      // Apply migrations if needed
+      // Apply migrations if needed - only set defaults if values don't exist
       if (parsed.userTemplates) {parsed.userTemplates = [];}
-      if (parsed.settings.ai_provider) {parsed.settings.ai_provider = 'openai';}
-      if (parsed.settings.ai_base_url) {parsed.settings.ai_base_url = 'https://api.openai.com';}
-      if (parsed.settings.ai_model) {parsed.settings.ai_model = 'gpt-5.3-instant';}
+      if (!parsed.settings.ai_provider) {parsed.settings.ai_provider = 'openai';}
+      if (!parsed.settings.ai_base_url) {parsed.settings.ai_base_url = 'https://api.openai.com';}
+      if (!parsed.settings.ai_model) {parsed.settings.ai_model = 'gpt-5.3-instant';}
       console.log('✅ Migrated data from localStorage to IndexedDB');
       return parsed;
     }
@@ -139,7 +139,15 @@ async function migrateFromLocalStorage(): Promise<DBData> {
 async function getFromLocalStorageFallback(): Promise<DBData> {
   try {
     const raw = localStorage.getItem(LOCAL_KEY);
-    if (raw) {return JSON.parse(raw) as DBData;}
+    if (raw) {
+      const parsed = JSON.parse(raw) as DBData;
+      // Apply migrations if needed - only set defaults if values don't exist
+      if (parsed.userTemplates) {parsed.userTemplates = [];}
+      if (!parsed.settings.ai_provider) {parsed.settings.ai_provider = 'openai';}
+      if (!parsed.settings.ai_base_url) {parsed.settings.ai_base_url = 'https://api.openai.com';}
+      if (!parsed.settings.ai_model) {parsed.settings.ai_model = 'gpt-5.3-instant';}
+      return parsed;
+    }
   } catch (error) {
     console.warn('[DB] Failed to read from localStorage fallback:', error);
   }
@@ -166,7 +174,11 @@ function createFreshData(): DBData {
     diagrams: [{
       id: generateSecureId(),
       title: 'Welcome Diagram',
-      content: `flowchart TD
+      content: `---
+config:
+  theme: base
+---
+flowchart TD
     A([Start]) --> B{Is it working?}
     B -->|Yes| C[🎉 Great!]
     B -->|No| D[Debug it]
@@ -184,7 +196,7 @@ function createFreshData(): DBData {
     ],
     diagramTags: [],
     settings: {
-      theme: 'dark',
+      theme: 'light',
       language: 'en',
       ai_api_key: '',
       ai_provider: 'openai',
@@ -238,8 +250,11 @@ export async function getDiagram(id: string): Promise<Diagram | undefined> {
   return (await load()).diagrams.find(d => d.id === id);
 }
 
-export async function createDiagram(title: string, content = 'flowchart TD\n    A --> B', folder_id: string | null = null): Promise<Diagram> {
+export async function createDiagram(title: string, content = `flowchart TD
+    A --> B`, folder_id: string | null = null): Promise<Diagram> {
   const data = await load();
+  // Don't add theme: base frontmatter - let templates use Mermaid's default theme
+  // which has better support for all diagram types (ER, state, journey, etc.)
   const d: Diagram = { id: uid(), title, content, folder_id, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   data.diagrams.push(d);
   await save(data);

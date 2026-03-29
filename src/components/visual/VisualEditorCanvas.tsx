@@ -4,7 +4,7 @@ import { renderDiagram } from '@/lib/mermaid/core';
 import { sanitizeSVG } from '@/utils/sanitization';
 import {
   parseDiagram, updateNodeStyle, updateNodeLabel, updateNodeShape,
-  addNode, removeNode, addEdge, generateNodeId, getNodeStyle,
+  addNode, removeNode, addEdge, generateNodeId, getNodeStyle, addSubgraph,
 } from '@/lib/mermaid/codeUtils';
 import { ShapeToolbar } from './ShapeToolbar';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -54,10 +54,11 @@ function extractSvgNodes(container: HTMLDivElement): NodeOverlay[] {
 interface Props {
   content: string;
   theme: 'dark' | 'light';
+  themeId?: string;
   onChange: (content: string) => void;
 }
 
-export function VisualEditorCanvas({ content, theme, onChange }: Props) {
+export function VisualEditorCanvas({ content, theme, themeId, onChange }: Props) {
   const [svg, setSvg] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -76,7 +77,7 @@ export function VisualEditorCanvas({ content, theme, onChange }: Props) {
   const render = useCallback(async () => {
     const id = ++renderIdRef.current;
     setLoading(true);
-    const { svg: s, error: e } = await renderDiagram(content, `visual_${id}_${Date.now()}`);
+    const { svg: s, error: e } = await renderDiagram(content, `visual_${id}_${Date.now()}`, themeId);
     if (id !== renderIdRef.current) {return;}
     setLoading(false);
     if (e) { setError(e); return; }
@@ -232,6 +233,10 @@ export function VisualEditorCanvas({ content, theme, onChange }: Props) {
     onChange(lines.join('\n'));
   }
 
+  function handleAddSubgraph() {
+    onChange(addSubgraph(content));
+  }
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.key === 'Delete' || e.key === 'Backspace') && selection.nodeIds.length > 0) {
@@ -269,6 +274,7 @@ export function VisualEditorCanvas({ content, theme, onChange }: Props) {
         onDragStart={shape => setDragShape(shape)}
         onDeleteSelected={handleDeleteSelected}
         hasSelection={selection.nodeIds.length > 0}
+        onAddSubgraph={handleAddSubgraph}
       />
 
       <div className="flex flex-1 overflow-hidden">

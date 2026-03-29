@@ -12,6 +12,7 @@ export interface Diagram {
   id: string;
   title: string;
   content: string;
+  themeId?: string;        // diagram-level theme preference (render-time only)
   folder_id: string | null;
   created_at: string;
   updated_at: string;
@@ -38,4 +39,5 @@ export interface Tab {
   content: string;
   saved_content: string;
   is_dirty: boolean;
+  themeId?: string;          // active theme for this tab (render-time theming)
 }

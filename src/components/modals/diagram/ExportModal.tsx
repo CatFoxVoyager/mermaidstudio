@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Image, FileText, Code, Share2, Check, Braces, X, Download } from 'lucide-react';
-import { toPng } from 'html-to-image';
+import { Image as ImageIcon, FileText, Code, Share2, Check, Braces, X, Download, Circle } from 'lucide-react';
 
 interface Props {
   isOpen?: boolean;
@@ -14,16 +13,50 @@ interface Props {
 export function ExportModal({ isOpen = true, diagramTitle, diagramContent, onClose, onCopyLink }: Props) {
   const { t } = useTranslation();
   const [done, setDone] = useState<string | null>(null);
+  const [transparentBg, setTransparentBg] = useState(false);
 
   function markDone(id: string) {
     setDone(id);
     setTimeout(() => setDone(null), 2000);
   }
 
+  function getShadowSvg(): SVGElement | null {
+    const shadowHost = document.querySelector('[data-shadow-host]') as HTMLElement & { shadowRoot: ShadowRoot };
+    if (!shadowHost?.shadowRoot) return null;
+    return shadowHost.shadowRoot.querySelector('svg');
+  }
+
+  /** Clone the shadow SVG into a detached DOM element for reliable rendering */
+  function cloneSvgForExport(): SVGSVGElement | null {
+    const svg = getShadowSvg();
+    if (!svg) return null;
+
+    // Serialize and re-parse to get a clean detached copy
+    const raw = svg.outerHTML;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(raw, 'image/svg+xml');
+    const parseError = doc.querySelector('parsererror');
+    if (parseError) return null;
+
+    const clone = doc.documentElement as unknown as SVGSVGElement;
+    // Force explicit pixel dimensions from viewBox
+    const vb = clone.getAttribute('viewBox');
+    if (vb) {
+      const [, , w, h] = vb.split(/\s+/).map(Number);
+      if (w && h) {
+        clone.setAttribute('width', String(w));
+        clone.setAttribute('height', String(h));
+      }
+    }
+    // Keep foreignObject (contains text labels) — data URLs handle it fine
+
+    return clone;
+  }
+
   async function exportSvg() {
-    const svgEl = document.querySelector('.mermaid-container svg') as SVGElement;
-    if (!svgEl) {return;}
-    const blob = new Blob([svgEl.outerHTML], { type: 'image/svg+xml' });
+    const svg = getShadowSvg();
+    if (!svg) return;
+    const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = `${diagramTitle.replace(/\s+/g, '_')}.svg`; a.click();
@@ -32,16 +65,52 @@ export function ExportModal({ isOpen = true, diagramTitle, diagramContent, onClo
   }
 
   async function exportPng() {
-    const container = document.querySelector('.mermaid-container') as HTMLElement;
-    if (!container) {return;}
+    const svg = cloneSvgForExport();
+    if (!svg) return;
     try {
-      const dataUrl = await toPng(container, { pixelRatio: 2 });
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `${diagramTitle.replace(/\s+/g, '_')}.png`;
-      a.click();
+      // Inject background unless transparent background is selected
+      if (!transparentBg) {
+        const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--surface-base').trim() || '#0d1117';
+        const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bgRect.setAttribute('width', svg.getAttribute('width')!);
+        bgRect.setAttribute('height', svg.getAttribute('height')!);
+        bgRect.setAttribute('fill', bgColor);
+        svg.insertBefore(bgRect, svg.firstChild);
+      }
+
+      const width = parseFloat(svg.getAttribute('width') ?? '0');
+      const height = parseFloat(svg.getAttribute('height') ?? '0');
+
+      // Serialize to data URL (blob: URLs are blocked by CSP)
+      const data = new XMLSerializer().serializeToString(svg);
+      const dataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(data)))}`;
+
+      const img = document.createElement('img');
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load SVG data URL'));
+        img.src = dataUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width * 2;
+      canvas.height = height * 2;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${diagramTitle.replace(/\s+/g, '_')}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+
       markDone('png');
-    } catch {
+    } catch (err) {
+      console.error('PNG export failed:', err);
       markDone('png');
     }
   }
@@ -68,7 +137,7 @@ ${diagramContent}
 
   const options = [
     { id: 'svg', icon: <FileText size={18} />, label: t('export.exportSvg'), desc: t('export.exportSvgDesc'), action: exportSvg },
-    { id: 'png', icon: <Image size={18} />, label: t('export.exportPng'), desc: t('export.exportPngDesc'), action: exportPng },
+    { id: 'png', icon: <ImageIcon size={18} />, label: t('export.exportPng'), desc: t('export.exportPngDesc'), action: exportPng },
     { id: 'md', icon: <Code size={18} />, label: t('export.copyMarkdown'), desc: t('export.copyMarkdownDesc'), action: copyMarkdown },
     { id: 'embed', icon: <Braces size={18} />, label: t('export.copyEmbedCode'), desc: t('export.copyEmbedDesc'), action: copyEmbedCode },
     { id: 'link', icon: <Share2 size={18} />, label: t('export.copyShareLink'), desc: t('export.copyShareLinkDesc'), action: handleCopyLink },
@@ -100,7 +169,33 @@ ${diagramContent}
             <X size={14} />
           </button>
         </div>
-        <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
+        <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+          {/* Transparent Background Toggle */}
+          <label className="flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-all"
+            style={{ background: 'var(--surface-floating)', borderColor: 'var(--border-subtle)' }}>
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={transparentBg}
+                onChange={e => setTransparentBg(e.target.checked)}
+                className="sr-only"
+              />
+              <div className={`w-9 h-5 rounded-full transition-colors ${transparentBg ? 'bg-teal-500' : 'bg-gray-600'}`}>
+                <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${transparentBg ? 'translate-x-4' : 'translate-x-0.5'} mt-0.5`} />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-1">
+              <Circle size={14} style={{ color: transparentBg ? 'var(--accent)' : 'var(--text-tertiary)' }} />
+              <div>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+                  {t('export.transparentBackground')}
+                </p>
+                <p className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+                  {t('export.transparentBackgroundDesc')}
+                </p>
+              </div>
+            </div>
+          </label>
           {options.map(opt => (
             <button key={opt.id} onClick={opt.action}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left border transition-all duration-150"

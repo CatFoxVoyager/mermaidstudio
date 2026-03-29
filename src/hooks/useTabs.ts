@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Tab } from '@/types';
-import { getDiagram, updateDiagram, saveVersion, getSettings, updateSettings } from '@/services/storage/database';
+import { getDiagram, getDiagrams, updateDiagram, saveVersion, getSettings, updateSettings } from '@/services/storage/database';
+import { extractThemeIdFromContent } from '@/constants/themeDerivation';
 
 export function useTabs() {
   const [tabs, setTabs] = useState<Tab[]>([]);
@@ -11,9 +12,20 @@ export function useTabs() {
   useEffect(() => {
     async function restoreLastDiagram() {
       const settings = await getSettings();
-      if (settings.lastOpenDiagramId) {
-        const diagram = await getDiagram(settings.lastOpenDiagramId);
+      let diagramId = settings.lastOpenDiagramId;
+
+      // If no last open diagram, fall back to the first available diagram
+      if (!diagramId) {
+        const diagrams = await getDiagrams();
+        if (diagrams.length > 0) {
+          diagramId = diagrams[0].id;
+        }
+      }
+
+      if (diagramId) {
+        const diagram = await getDiagram(diagramId);
         if (diagram) {
+          const themeFromContent = extractThemeIdFromContent(diagram.content);
           const tab: Tab = {
             id: `tab_${diagram.id}`,
             diagram_id: diagram.id,
@@ -21,6 +33,7 @@ export function useTabs() {
             content: diagram.content,
             saved_content: diagram.content,
             is_dirty: false,
+            themeId: diagram.themeId ?? themeFromContent ?? undefined,
           };
           setTabs([tab]);
           setActiveTabId(tab.id);
@@ -51,6 +64,7 @@ export function useTabs() {
       content: diagram.content,
       saved_content: diagram.content,
       is_dirty: false,
+      themeId: diagram.themeId ?? extractThemeIdFromContent(diagram.content) ?? undefined,
     };
 
     setTabs(prev => {
@@ -78,9 +92,37 @@ export function useTabs() {
     });
   }, []);
 
+  const closeTabsByDiagramIds = useCallback((diagramIds: string[]) => {
+    const idSet = new Set(diagramIds);
+    setTabs(prev => {
+      const removed = prev.some(t => idSet.has(t.diagram_id));
+      if (!removed) return prev;
+      const updated = prev.filter(t => !idSet.has(t.diagram_id));
+      setActiveTabId(cur => {
+        if (cur && !idSet.has(prev.find(t => t.id === cur)?.diagram_id ?? '')) {return cur;}
+        if (updated.length > 0) return updated[0].id;
+        return null;
+      });
+      return updated;
+    });
+  }, []);
+
   const updateTabContent = useCallback((tabId: string, content: string) => {
+    const themeFromContent = extractThemeIdFromContent(content);
+    setTabs(prev => prev.map(t => {
+      if (t.id !== tabId) return t;
+      const updates: Partial<Tab> = { content, is_dirty: content !== t.saved_content };
+      // Auto-detect theme from %% @theme comment when content changes (e.g. paste)
+      if (themeFromContent !== null) {
+        updates.themeId = themeFromContent;
+      }
+      return { ...t, ...updates };
+    }));
+  }, []);
+
+  const updateTabTheme = useCallback((tabId: string, themeId: string | null) => {
     setTabs(prev => prev.map(t =>
-      t.id === tabId ? { ...t, content, is_dirty: content !== t.saved_content } : t
+      t.id === tabId ? { ...t, themeId: themeId ?? undefined } : t
     ));
   }, []);
 
@@ -89,13 +131,15 @@ export function useTabs() {
       const tab = prev.find(t => t.id === tabId);
       if (!tab) {return prev;}
       // Fire and forget - update will happen in background
-      updateDiagram(tab.diagram_id, { content: tab.content, title: tab.title });
-      saveVersion(tab.diagram_id, tab.content);
+      updateDiagram(tab.diagram_id, { content: tab.content, title: tab.title, themeId: tab.themeId })
+        .catch(err => console.error('[useTabs] Failed to update diagram:', err));
+      saveVersion(tab.diagram_id, tab.content)
+        .catch(err => console.error('[useTabs] Failed to save version:', err));
       return prev.map(t => t.id === tabId ? { ...t, saved_content: t.content, is_dirty: false } : t);
     });
   }, []);
 
   const activeTab = tabs.find(t => t.id === activeTabId) ?? null;
 
-  return { tabs, activeTabId, activeTab, setActiveTabId, openDiagram, closeTab, updateTabContent, saveTab };
+  return { tabs, activeTabId, activeTab, setActiveTabId, openDiagram, closeTab, closeTabsByDiagramIds, updateTabContent, updateTabTheme, saveTab };
 }

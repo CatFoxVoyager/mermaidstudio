@@ -239,12 +239,18 @@ describe('Database API Key Encryption', () => {
   });
 
   describe('Async operations', () => {
-    it('should create diagrams asynchronously', async () => {
+    it('should create diagrams asynchronously with base theme by default', async () => {
       const diagram = await createDiagram('Test Diagram', 'flowchart TD\n  A --> B');
 
       expect(diagram.id).toBeDefined();
       expect(diagram.title).toBe('Test Diagram');
-      expect(diagram.content).toBe('flowchart TD\n  A --> B');
+      // Content should include base theme frontmatter
+      expect(diagram.content).toContain('---');
+      expect(diagram.content).toContain('config:');
+      expect(diagram.content).toContain('theme: base');
+      expect(diagram.content).toContain('flowchart TD');
+      // themeId should be undefined (frontmatter provides theming)
+      expect(diagram.themeId).toBeUndefined();
     });
 
     it('should create folders asynchronously', async () => {
@@ -276,12 +282,15 @@ describe('Database API Key Encryption', () => {
   });
 
   describe('Diagram CRUD operations', () => {
-    it('should create diagram with unique ID', async () => {
+    it('should create diagram with unique ID and base theme by default', async () => {
       const diagram = await createDiagram('Test Diagram', 'flowchart TD\n  A --> B');
 
       expect(diagram.id).toBeDefined();
       expect(diagram.title).toBe('Test Diagram');
-      expect(diagram.content).toBe('flowchart TD\n  A --> B');
+      // Default content includes base theme in frontmatter
+      expect(diagram.content).toContain('---');
+      expect(diagram.content).toContain('theme: base');
+      expect(diagram.content).toContain('flowchart TD');
       expect(diagram.created_at).toBeDefined();
       expect(diagram.updated_at).toBeDefined();
     });
@@ -310,6 +319,7 @@ describe('Database API Key Encryption', () => {
 
       const updated = await getDiagram(diagram.id);
       expect(updated?.title).toBe('Updated Title');
+      // Content is updated as-is (base theme config is only added on creation)
       expect(updated?.content).toBe('flowchart TD\n  B --> C');
       expect(updated?.created_at).toBe(diagram.created_at); // Should not change
       expect(updated?.updated_at).toBeDefined(); // Should be present

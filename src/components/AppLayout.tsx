@@ -4,12 +4,14 @@ import { WorkspacePanel } from '@/editor/WorkspacePanel';
 import { AIPanel } from '@/ai/AIPanel';
 import { DiagramColorsPanel } from '@/components/modals/settings/DiagramColorsPanel';
 import { AdvancedStylePanel } from '@/components/modals/settings/AdvancedStylePanel';
-import type { Tab } from '@/types';
+import type { Tab, MermaidTheme } from '@/types';
 
 interface AppLayoutProps {
   // Theme
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  defaultTheme?: MermaidTheme | null;
+  setDefaultTheme?: (theme: MermaidTheme | null) => void;
   // Language
   language: string;
   onChangeLanguage: (lang: string) => void;
@@ -18,6 +20,7 @@ interface AppLayoutProps {
   onToggleSidebar: () => void;
   onOpenDiagram: (id: string) => void;
   onRefreshSidebar: () => void;
+  onDiagramDeleted: (diagramIds: string[]) => void;
   // Tabs
   tabs: Tab[];
   activeTabId: string | null;
@@ -50,6 +53,8 @@ interface AppLayoutProps {
   onAIOpenSettings: () => void;
   onDiagramColorsClose: () => void;
   onAdvancedStyleClose: () => void;
+  /** Called when diagram-level theme changes (from DiagramColorsPanel) */
+  onThemeIdChange?: (themeId: string | null) => void;
   // Other
   focusMode: boolean;
   renderTimeMs: number | null;
@@ -60,12 +65,15 @@ interface AppLayoutProps {
 export function AppLayout({
   theme,
   toggleTheme,
+  defaultTheme,
+  setDefaultTheme,
   language,
   onChangeLanguage,
   sidebarOpen,
   onToggleSidebar,
   onOpenDiagram,
   onRefreshSidebar,
+  onDiagramDeleted,
   tabs,
   activeTabId,
   activeTab,
@@ -94,6 +102,7 @@ export function AppLayout({
   onAIOpenSettings,
   onDiagramColorsClose,
   onAdvancedStyleClose,
+  onThemeIdChange,
   focusMode,
   renderTimeMs,
   onRenderTime,
@@ -126,6 +135,7 @@ export function AppLayout({
               onOpenDiagram={onOpenDiagram}
               activeDiagramId={activeTab?.diagram_id ?? null}
               onRefresh={onRefreshSidebar}
+              onDiagramDeleted={onDiagramDeleted}
               key={refreshKey}
             />
           )}
@@ -137,6 +147,7 @@ export function AppLayout({
             activeTabId={activeTabId}
             activeTab={activeTab}
             theme={theme}
+            themeId={activeTab?.themeId}
             onSelectTab={onSelectTab}
             onCloseTab={onCloseTab}
             onContentChange={onContentChange}
@@ -152,6 +163,10 @@ export function AppLayout({
             onShowPalette={onShowPalette}
             onShowDiagramColors={onShowDiagramColors}
             onShowAdvancedStyle={onShowAdvancedStyle}
+            onDiagramColorsClose={onDiagramColorsClose}
+            onAdvancedStyleClose={onAdvancedStyleClose}
+            showDiagramColors={showDiagramColors}
+            showAdvancedStyle={showAdvancedStyle}
             renderTimeMs={renderTimeMs}
             onRenderTime={onRenderTime}
           />
@@ -165,6 +180,10 @@ export function AppLayout({
                 currentContent={activeTab.content}
                 onContentChange={(content) => onContentChange(activeTab.id, content)}
                 theme={theme}
+                currentThemeId={activeTab.themeId}
+                onThemeIdChange={onThemeIdChange}
+                defaultThemeId={defaultTheme?.id}
+                onSetDefaultTheme={setDefaultTheme}
               />
             )}
           </div>

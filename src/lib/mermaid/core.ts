@@ -1,7 +1,11 @@
 import mermaid from 'mermaid';
+import elkLayouts from '@mermaid-js/layout-elk';
 import DOMPurify from 'dompurify';
 import type { DiagramType } from '@/types';
 import { validateDiagramContent } from '@/utils/validation';
+import { deriveThemeVariables } from '@/constants/themeDerivation';
+import { getThemeById } from '@/constants/themes';
+import type { MermaidTheme } from '@/types';
 
 /**
  * DOMPurify configuration for sanitizing Mermaid SVG output.
@@ -64,64 +68,79 @@ const SANITIZATION_CONFIG = {
   ALLOW_UNKNOWN_ATTRS: false,
 } satisfies { ALLOWED_TAGS: string[]; ALLOWED_ATTR: string[]; ALLOW_DATA_URI: boolean; ALLOW_UNKNOWN_ATTRS: boolean };
 
+export type MermaidBuiltinTheme = 'default' | 'dark' | 'forest' | 'neutral' | 'base';
+
 let currentTheme: 'dark' | 'light' = 'dark';
+let currentMermaidTheme: MermaidBuiltinTheme = 'base';
+let defaultTheme: MermaidTheme | null = null;
+let diagramTheme: MermaidTheme | null = null;
 
-const darkVars = {
-  primaryColor: '#161b22',
-  primaryTextColor: '#f0f6fc',
-  primaryBorderColor: '#30363d',
-  lineColor: '#8b949e',
-  secondaryColor: '#21262d',
-  tertiaryColor: '#0d1117',
-  background: '#0d1117',
-  mainBkg: '#161b22',
-  nodeBorder: '#30363d',
-  nodeTextColor: '#f0f6fc',
-  clusterBkg: '#21262d',
-  clusterBorder: '#30363d',
-  titleColor: '#f0f6fc',
-  edgeLabelBackground: '#21262d',
-  actorBkg: '#161b22',
-  actorBorder: '#30363d',
-  actorTextColor: '#f0f6fc',
-  actorLineColor: '#8b949e',
-  signalColor: '#8b949e',
-  signalTextColor: '#f0f6fc',
-  noteBkgColor: '#21262d',
-  noteBorderColor: '#30363d',
-  noteTextColor: '#f0f6fc',
-};
+// Register ELK layout loaders once
+mermaid.registerLayoutLoaders(elkLayouts);
 
-const lightVars = {
-  primaryColor: '#ffffff',
-  primaryTextColor: '#111827',
-  primaryBorderColor: '#d1d5db',
-  lineColor: '#6b7280',
-  background: '#fafaf9',
-  mainBkg: '#ffffff',
-  nodeBorder: '#d1d5db',
-  nodeTextColor: '#111827',
-  noteBkgColor: '#f3f4f6',
-  noteBorderColor: '#d1d5db',
-  noteTextColor: '#111827',
-};
+function doInit(theme: 'dark' | 'light', useBase: boolean, mermaidTheme?: MermaidBuiltinTheme) {
+  const resolvedMermaidTheme = mermaidTheme ?? (useBase ? 'base' : (theme === 'dark' ? 'dark' : 'default'));
+  const isDark = theme === 'dark';
 
-function doInit(theme: 'dark' | 'light', useBase: boolean) {
+  let themeVars: Record<string, string> | undefined;
+  if (!useBase && diagramTheme) {
+    // Use the diagram-specific theme (render-time theming)
+    themeVars = deriveThemeVariables(diagramTheme.coreColors, isDark);
+  } else if (!useBase && defaultTheme) {
+    // Use the user's default theme for app-level theming
+    themeVars = deriveThemeVariables(defaultTheme.coreColors, isDark);
+  } else if (!useBase) {
+    // Fallback: use Mermaid's built-in theme (no custom themeVariables)
+    themeVars = undefined;
+  }
+  // When useBase is true, don't pass themeVariables (frontmatter controls theming)
+
   mermaid.initialize({
     startOnLoad: false,
-    theme: useBase ? 'base' : (theme === 'dark' ? 'dark' : 'default'),
-    darkMode: theme === 'dark',
+    theme: resolvedMermaidTheme,
+    darkMode: isDark,
     fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
     fontSize: 14,
-    flowchart: { curve: 'basis', padding: 20, htmlLabels: false },
+    flowchart: { curve: 'basis', padding: 20, htmlLabels: false, useMaxWidth: false },
     sequence: { useMaxWidth: true, actorMargin: 50 },
-    themeVariables: useBase ? {} : (theme === 'dark' ? darkVars : lightVars),
+    ...(themeVars && { themeVariables: themeVars }),
   });
 }
 
-export function initMermaid(theme: 'dark' | 'light') {
+export function initMermaid(
+  theme: 'dark' | 'light',
+  mermaidTheme?: MermaidBuiltinTheme,
+  appDefaultTheme?: MermaidTheme | null
+) {
   currentTheme = theme;
-  doInit(theme, false);
+  if (mermaidTheme) { currentMermaidTheme = mermaidTheme; }
+  if (appDefaultTheme !== undefined) { defaultTheme = appDefaultTheme; }
+  doInit(theme, false, currentMermaidTheme);
+}
+
+export function setDefaultTheme(theme: MermaidTheme | null) {
+  defaultTheme = theme;
+  doInit(currentTheme, false, currentMermaidTheme);
+}
+
+export function getDefaultTheme(): MermaidTheme | null {
+  return defaultTheme;
+}
+
+/**
+ * Set a diagram-specific theme for render-time theming.
+ * This allows diagrams to have their own theme preference without
+ * injecting YAML frontmatter into content.
+ */
+export function setDiagramTheme(themeId: string | null): void {
+  diagramTheme = themeId ? getThemeById(themeId) : null;
+}
+
+/**
+ * Get the current diagram-specific theme.
+ */
+export function getDiagramTheme(): MermaidTheme | null {
+  return diagramTheme;
 }
 
 function extractEdgeLabelTextColor(content: string): string | null {
@@ -158,7 +177,7 @@ function fixEdgeLabelTextColor(svgStr: string, textColor: string): string {
   return svgEl ? svgEl.outerHTML : svgStr;
 }
 
-export async function renderDiagram(content: string, id: string): Promise<{ svg: string; error: string | null }> {
+export async function renderDiagram(content: string, id: string, themeId?: string): Promise<{ svg: string; error: string | null }> {
   // Validate input before processing
   const validation = validateDiagramContent(content);
   if (!validation.valid) {
@@ -167,7 +186,13 @@ export async function renderDiagram(content: string, id: string): Promise<{ svg:
 
   const trimmed = content.trimStart();
   const hasCustomTheme = trimmed.startsWith('---') || trimmed.startsWith('%%{init:');
-  doInit(currentTheme, hasCustomTheme);
+
+  // Set diagram theme if provided (render-time theming)
+  if (themeId !== undefined) {
+    setDiagramTheme(themeId);
+  }
+
+  doInit(currentTheme, hasCustomTheme, currentMermaidTheme);
 
   const safeId = id.replace(/[^a-zA-Z0-9_]/g, '_');
   try {
@@ -189,22 +214,89 @@ export async function renderDiagram(content: string, id: string): Promise<{ svg:
         svg = fixEdgeLabelTextColor(svg, textColor);
       }
     }
+
     return { svg, error: null };
   } catch (e) {
+    // Clean up the temporary rendering element that mermaid leaves behind on failure.
+    // Without this, subsequent renders may fail silently after a parse error.
+    const el = document.getElementById(safeId);
+    if (el) el.remove();
     return { svg: '', error: e instanceof Error ? e.message : String(e) };
   }
 }
 
 export function detectDiagramType(content: string): DiagramType {
-  const first = content.trim().split('\n')[0].toLowerCase().trim();
+  // Remove YAML frontmatter if present
+  let body = content.replace(/^\s*---[\s\S]*?---\s*/i, '').trim();
+  body = body.replace(/^\s*%%\{init:[\s\S]*?\}%%\s*/i, '').trim();
+  // Skip Mermaid comment lines (e.g. %% @theme corporate_blue)
+  body = body.replace(/^(%%[^\n]*\n?)+/i, '').trim();
+
+  const first = body.split('\n')[0]?.toLowerCase().trim();
+  if (!first) return 'unknown';
+
+  // Flowchart and variants
   if (first.startsWith('flowchart') || first.startsWith('graph')) {return 'flowchart';}
+
+  // Sequence diagram
   if (first.startsWith('sequencediagram')) {return 'sequence';}
+
+  // Class diagram
   if (first.startsWith('classdiagram')) {return 'classDiagram';}
+
+  // State diagram
   if (first.startsWith('statediagram')) {return 'stateDiagram';}
+
+  // ER diagram
   if (first.startsWith('erdiagram')) {return 'erDiagram';}
+
+  // Gantt chart
   if (first.startsWith('gantt')) {return 'gantt';}
+
+  // Pie chart
   if (first.startsWith('pie')) {return 'pie';}
+
+  // Mindmap
   if (first.startsWith('mindmap')) {return 'mindmap';}
+
+  // Git graph
   if (first.startsWith('gitgraph')) {return 'gitGraph';}
+
+  // Journey map
+  if (first.startsWith('journey')) {return 'journey';}
+
+  // Timeline
+  if (first.startsWith('timeline')) {return 'timeline';}
+
+  // Quadrant chart
+  if (first.startsWith('quadrantchart')) {return 'quadrantChart';}
+
+  // Requirement diagram
+  if (first.startsWith('requirementdiagram')) {return 'requirementDiagram';}
+
+  // Sankey diagram
+  if (first.startsWith('sankey-beta') || first.startsWith('sankey')) {return 'sankey';}
+
+  // XY Chart
+  if (first.startsWith('xychart-beta')) {return 'xyChart';}
+
+  // Block diagram
+  if (first.startsWith('blockbeta') || first.startsWith('block')) {return 'blockDiagram';}
+
+  // C4 diagram
+  if (first.startsWith('c4')) {return 'c4';}
+
+  // Architecture diagram
+  if (first.startsWith('architecture')) {return 'architectureDiagram';}
+
+  // ZenUML
+  if (first.startsWith('zenuml')) {return 'zenuml';}
+
+  // Packet diagram
+  if (first.startsWith('packet')) {return 'packetDiagram';}
+
+  // Kanban
+  if (first.startsWith('kanban')) {return 'kanban';}
+
   return 'unknown';
 }

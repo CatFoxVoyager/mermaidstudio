@@ -1,0 +1,428 @@
+import { describe, it, expect } from 'vitest';
+import { deriveThemeVariables, applyThemeToFrontmatter, applyC4FromTheme, applyStyleToContent, DEFAULT_LIGHT_THEME, DEFAULT_DARK_THEME } from '../themeDerivation';
+import type { ThemeCoreColors } from '@/types';
+
+describe('themeDerivation', () => {
+  describe('deriveThemeVariables', () => {
+    it('produces >= 150 themeVariables from core colors', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      expect(Object.keys(result).length).toBeGreaterThanOrEqual(150);
+    });
+
+    it('derives secondaryColor from primaryColor when not provided', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      expect(result.secondaryColor).toBeDefined();
+      expect(result.secondaryColor).not.toBe('#ECECFF');
+    });
+
+    it('derives tertiaryColor from primaryColor when not provided', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      expect(result.tertiaryColor).toBeDefined();
+      expect(result.tertiaryColor).not.toBe('#ECECFF');
+    });
+
+    it('derives border colors via mkBorder', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      expect(result.primaryBorderColor).toBeDefined();
+      expect(result.secondaryBorderColor).toBeDefined();
+      expect(result.tertiaryBorderColor).toBeDefined();
+    });
+
+    it('derives text colors via invert', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      expect(result.primaryTextColor).toBeDefined();
+      expect(result.secondaryTextColor).toBeDefined();
+      expect(result.tertiaryTextColor).toBeDefined();
+    });
+
+    it('produces cScale0-cScale11', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      for (let i = 0; i <= 11; i++) {
+        expect(result[`cScale${i}`]).toBeDefined();
+      }
+    });
+
+    it('darkens cScale differently for dark vs light mode', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const lightResult = deriveThemeVariables(coreColors, false);
+      const darkResult = deriveThemeVariables(coreColors, true);
+      // cScale0 should be different between light and dark
+      expect(lightResult.cScale0).not.toBe(darkResult.cScale0);
+    });
+
+    it('derives fillType0-7', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      for (let i = 0; i <= 7; i++) {
+        expect(result[`fillType${i}`]).toBeDefined();
+      }
+    });
+
+    it('derives pie1-12', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      for (let i = 1; i <= 12; i++) {
+        expect(result[`pie${i}`]).toBeDefined();
+      }
+    });
+
+    it('derives git0-7 with dark/light adjustments', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const lightResult = deriveThemeVariables(coreColors, false);
+      const darkResult = deriveThemeVariables(coreColors, true);
+      for (let i = 0; i <= 7; i++) {
+        expect(lightResult[`git${i}`]).toBeDefined();
+        expect(darkResult[`git${i}`]).toBeDefined();
+        // Git colors should be different between light and dark
+        expect(lightResult[`git${i}`]).not.toBe(darkResult[`git${i}`]);
+      }
+    });
+
+    it('derives surface0-4 and surfacePeer0-4', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      for (let i = 0; i <= 4; i++) {
+        expect(result[`surface${i}`]).toBeDefined();
+        expect(result[`surfacePeer${i}`]).toBeDefined();
+      }
+    });
+
+    it('derives quadrant fill/text colors', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      for (let i = 1; i <= 4; i++) {
+        expect(result[`quadrant${i}Fill`]).toBeDefined();
+        expect(result[`quadrant${i}TextFill`]).toBeDefined();
+      }
+    });
+
+    it('derives xyChart nested object', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      expect(result.xyChart).toBeDefined();
+      expect(typeof result.xyChart).toBe('string');
+    });
+
+    it('derives radar nested object', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      expect(result.radar).toBeDefined();
+      expect(typeof result.radar).toBe('string');
+    });
+
+    it('derives venn1-8', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      for (let i = 1; i <= 8; i++) {
+        expect(result[`venn${i}`]).toBeDefined();
+      }
+    });
+
+    it('derives requirement colors', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      expect(result.requirementBackground).toBeDefined();
+      expect(result.requirementBorderColor).toBeDefined();
+      expect(result.requirementTextColor).toBeDefined();
+    });
+
+    it('derives architecture edge/group colors', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      expect(result.archEdgeColor).toBeDefined();
+      expect(result.archGroupBorderColor).toBeDefined();
+    });
+
+    it('darkMode produces different rowOdd/rowEven', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+      };
+      const lightResult = deriveThemeVariables(coreColors, false);
+      const darkResult = deriveThemeVariables(coreColors, true);
+      expect(lightResult.rowOdd).not.toBe(darkResult.rowOdd);
+      expect(lightResult.rowEven).not.toBe(darkResult.rowEven);
+    });
+
+    it('user overrides preserved after derivation (calculate pattern)', () => {
+      const coreColors: ThemeCoreColors = {
+        primaryColor: '#ECECFF',
+        background: '#ffffff',
+        lineColor: '#ff0000',
+      };
+      const result = deriveThemeVariables(coreColors, false);
+      // User-provided lineColor should be preserved
+      expect(result.lineColor).toBe('#ff0000');
+    });
+  });
+
+  describe('applyThemeToFrontmatter', () => {
+    it('wraps content in YAML frontmatter with themeVariables', () => {
+      const theme = {
+        id: 'test',
+        name: 'Test',
+        description: 'Test theme',
+        isBuiltin: true,
+        coreColors: {
+          primaryColor: '#ECECFF',
+          background: '#ffffff',
+        },
+      };
+      const content = 'flowchart TD\n  A --> B';
+      const result = applyThemeToFrontmatter(content, theme, false);
+      expect(result).toMatch(/^---\nconfig:/);
+      expect(result).toContain("theme: 'base'");
+      expect(result).toContain('themeVariables:');
+      expect(result).toContain('primaryColor:');
+    });
+
+    it('strips existing frontmatter before applying', () => {
+      const theme = {
+        id: 'test',
+        name: 'Test',
+        description: 'Test theme',
+        isBuiltin: true,
+        coreColors: {
+          primaryColor: '#ECECFF',
+          background: '#ffffff',
+        },
+      };
+      const content = `---
+config:
+  theme: default
+---
+flowchart TD
+  A --> B`;
+      const result = applyThemeToFrontmatter(content, theme, false);
+      // Should only have one frontmatter block
+      const frontmatterCount = (result.match(/^---\n/g) || []).length;
+      expect(frontmatterCount).toBe(1);
+    });
+  });
+
+  describe('applyC4FromTheme', () => {
+    it('generates UpdateElementStyle directives from theme', () => {
+      const theme = {
+        id: 'test',
+        name: 'Test',
+        description: 'Test theme',
+        isBuiltin: true,
+        coreColors: {
+          primaryColor: '#ECECFF',
+          background: '#ffffff',
+        },
+      };
+      const c4Content = `C4Context
+    title System Context
+    Person(user, "User")
+    System(sys, "System")`;
+      const result = applyC4FromTheme(c4Content, theme);
+      expect(result).toContain('UpdateElementStyle(person,');
+      expect(result).toContain('UpdateElementStyle(system,');
+      expect(result).toContain(theme.coreColors.primaryColor);
+    });
+  });
+
+  describe('applyStyleToContent', () => {
+    it('preserves existing themeVariables when adding style options', () => {
+      const contentWithTheme = `---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: '#ff6b6b'
+    primaryTextColor: '#ffffff'
+    lineColor: '#ff6b6b'
+    fontSize: '16px'
+  flowchart:
+    curve: basis
+---
+graph TD
+    A[Start] --> B[End]
+`;
+
+      const result = applyStyleToContent(contentWithTheme, {
+        fontFamily: 'Arial, Helvetica, sans-serif'
+      });
+
+      // Should preserve existing themeVariables
+      expect(result).toContain("primaryColor: '#ff6b6b'");
+      expect(result).toContain("primaryTextColor: '#ffffff'");
+      expect(result).toContain("lineColor: '#ff6b6b'");
+      expect(result).toContain("fontSize: '16px'");
+
+      // Should add the new fontFamily
+      expect(result).toContain("fontFamily: 'Arial, Helvetica, sans-serif'");
+    });
+
+    it('preserves existing themeVariables when changing fontSize', () => {
+      const contentWithTheme = `---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: '#ff6b6b'
+    fontSize: '16px'
+---
+graph TD
+    A[Start] --> B[End]
+`;
+
+      const result = applyStyleToContent(contentWithTheme, {
+        fontSize: 20
+      });
+
+      // Should preserve existing primaryColor
+      expect(result).toContain("primaryColor: '#ff6b6b'");
+
+      // Should update the fontSize
+      expect(result).toContain("fontSize: '20px'");
+
+      // Should NOT contain the old fontSize value
+      expect(result).not.toContain("fontSize: '16px'");
+    });
+
+    it('preserves existing themeVariables when adding primaryColor', () => {
+      const contentWithTheme = `---
+config:
+  theme: base
+  themeVariables:
+    fontSize: '16px'
+    fontFamily: 'Arial, sans-serif'
+---
+graph TD
+    A[Start] --> B[End]
+`;
+
+      const result = applyStyleToContent(contentWithTheme, {
+        primaryColor: '#00ff00'
+      });
+
+      // Should preserve existing themeVariables
+      expect(result).toContain("fontSize: '16px'");
+      expect(result).toContain("fontFamily: 'Arial, sans-serif'");
+
+      // Should add the new primaryColor
+      expect(result).toContain("primaryColor: '#00ff00'");
+    });
+
+    it('adds only the specified option when no themeVariables exist', () => {
+      const contentWithoutTheme = `graph TD
+    A[Start] --> B[End]
+`;
+
+      const result = applyStyleToContent(contentWithoutTheme, {
+        fontFamily: 'Arial, Helvetica, sans-serif'
+      }, false); // light mode
+
+      // Should only include fontFamily, not all default colors
+      expect(result).toContain("themeVariables:");
+      expect(result).toContain("fontFamily: 'Arial, Helvetica, sans-serif'");
+      // Should NOT include default theme colors
+      expect(result).not.toContain("primaryColor:");
+      expect(result).not.toContain("background:");
+    });
+
+    it('adds only the specified option in dark mode', () => {
+      const contentWithoutTheme = `graph TD
+    A[Start] --> B[End]
+`;
+
+      const result = applyStyleToContent(contentWithoutTheme, {
+        fontSize: 18
+      }, true); // dark mode
+
+      // Should only include fontSize, not all default colors
+      expect(result).toContain("themeVariables:");
+      expect(result).toContain("fontSize: '18px'");
+      // Should NOT include default theme colors
+      expect(result).not.toContain("primaryColor:");
+      expect(result).not.toContain("background:");
+    });
+  });
+
+  describe('default themes', () => {
+    it('DEFAULT_LIGHT_THEME is a valid MermaidTheme', () => {
+      expect(DEFAULT_LIGHT_THEME).toBeDefined();
+      expect(DEFAULT_LIGHT_THEME.id).toBeDefined();
+      expect(DEFAULT_LIGHT_THEME.name).toBeDefined();
+      expect(DEFAULT_LIGHT_THEME.coreColors).toBeDefined();
+      expect(DEFAULT_LIGHT_THEME.coreColors.primaryColor).toBeDefined();
+      expect(DEFAULT_LIGHT_THEME.coreColors.background).toBeDefined();
+    });
+
+    it('DEFAULT_DARK_THEME is a valid MermaidTheme', () => {
+      expect(DEFAULT_DARK_THEME).toBeDefined();
+      expect(DEFAULT_DARK_THEME.id).toBeDefined();
+      expect(DEFAULT_DARK_THEME.name).toBeDefined();
+      expect(DEFAULT_DARK_THEME.coreColors).toBeDefined();
+      expect(DEFAULT_DARK_THEME.coreColors.primaryColor).toBeDefined();
+      expect(DEFAULT_DARK_THEME.coreColors.background).toBeDefined();
+    });
+
+    it('deriveThemeVariables with DEFAULT_LIGHT_THEME produces all variables', () => {
+      const result = deriveThemeVariables(DEFAULT_LIGHT_THEME.coreColors, false);
+      expect(Object.keys(result).length).toBeGreaterThanOrEqual(150);
+    });
+
+    it('deriveThemeVariables with DEFAULT_DARK_THEME produces all variables', () => {
+      const result = deriveThemeVariables(DEFAULT_DARK_THEME.coreColors, true);
+      expect(Object.keys(result).length).toBeGreaterThanOrEqual(150);
+    });
+  });
+});
